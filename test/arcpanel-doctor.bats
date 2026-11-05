@@ -24,9 +24,17 @@ SAVE=/root/arcpanel-doctor-test-save
 FIX=/root/arcpanel-doctor-test-fix
 CERTS=/root/arcpanel-doctor-test-certs
 CHECKS=$ARCPANEL/func/doctor
-# The suite's resolver: TEST-NET-1, never routed, so a check that is not
-# pointed at the stub times out instead of asking the internet
+# The DNS stub (test/doctor-dns-stub.py) answers on 127.0.0.1:DNS_PORT from
+# the zone file in DNS; DOCTOR_RESOLVER is 127.0.0.1 while the suite runs.
+# Runs that cannot get DOCTOR_DNS_PORT (jobs) use TEST-NET-1, never routed,
+# so that they time out instead of asking the internet.
+DNS=/root/arcpanel-doctor-test-dns
+DNS_PORT=39953
 NORESOLVER=192.0.2.1
+# The suite's hosting user and its web and mail domain
+USR=arcdocusr
+DOM=doctor-web.test
+PASS="Doc-$(date +%s)-Pass"
 
 # Run bash code with the Doctor library loaded
 lib() {
@@ -76,6 +84,68 @@ signed() {
         -days "$days" -out "$CERTS/$name.crt" -extfile "$CERTS/$name.ext" > /dev/null 2>&1
 }
 
+# The zone of the DNS stub: zone "NAME TYPE VALUE"...
+zone() {
+    printf '%s\n' "$@" > "$DNS/zone"
+    rm -f "$DNS/drop"
+}
+
+stub_resolver() {
+    v-change-sys-config-value DOCTOR_RESOLVER 127.0.0.1 > /dev/null
+}
+
+start_dns() {
+    mkdir -p "$DNS"
+    : > "$DNS/zone"
+    setsid nohup python3 "$BATS_TEST_DIRNAME/doctor-dns-stub.py" "$DNS" "$DNS_PORT" > /dev/null 2>&1 < /dev/null &
+    echo $! > "$DNS/pid"
+    for _ in $(seq 1 50); do
+        dig +short +time=1 +tries=1 -p "$DNS_PORT" @127.0.0.1 A ready.test > /dev/null 2>&1 && break
+        sleep 0.1
+    done
+}
+
+stop_dns() {
+    [ -f "$DNS/pid" ] && kill "$(cat "$DNS/pid")" 2> /dev/null
+    pkill -f "doctor-dns-stub.py $DNS" 2> /dev/null || true
+    rm -rf "$DNS"
+}
+
+# The public and the local address of the suite's web domain
+pub_ip() {
+    lib "doctor_public_ip \"\$(doctor_field \"\$(doctor_domain_line $USR web $DOM)\" IP)\""
+}
+local_ip() {
+    lib "doctor_local_ip \"\$(doctor_field \"\$(doctor_domain_line $USR web $DOM)\" IP)\""
+}
+
+# Retry COMMAND for up to 20 seconds until it succeeds (NGINX reloads in
+# the background)
+eventually() {
+    for _ in $(seq 1 40); do
+        "$@" && return 0
+        sleep 0.5
+    done
+    "$@"
+}
+
+# The SAN of the certificate served for the suite's domain
+served_names() {
+    timeout 10 openssl s_client -connect "$(local_ip):443" -servername "$DOM" < /dev/null 2> /dev/null \
+        | openssl x509 -noout -ext subjectAltName 2> /dev/null | grep -oE 'DNS:[^, ]+' | cut -d: -f2 | sort | paste -sd, -
+}
+
+# A folder with DOMAIN.crt/.key/.ca of the certificate NAME for v-*-ssl
+ssl_dir() {
+    local name="$1" domain="$2"
+    rm -rf "$CERTS/dir-$name"
+    mkdir -p "$CERTS/dir-$name"
+    cp "$CERTS/$name.crt" "$CERTS/dir-$name/$domain.crt"
+    cp "$CERTS/$name.key" "$CERTS/dir-$name/$domain.key"
+    cp "$CERTS/ca.crt" "$CERTS/dir-$name/$domain.ca"
+    echo "$CERTS/dir-$name"
+}
+
 setup_file() {
     rm -rf "$SAVE" "$FIX" "$CERTS"
     mkdir -p "$SAVE" "$FIX" "$CERTS"
@@ -87,10 +157,23 @@ setup_file() {
         -subj '/CN=self.doctor.test' -addext 'subjectAltName=DNS:self.doctor.test' > /dev/null 2>&1
     signed panel 30 panel.doctor.test
     signed short 3 panel.doctor.test
-    v-change-sys-config-value DOCTOR_RESOLVER "$NORESOLVER" > /dev/null
+    signed web1 30 "$DOM"
+    signed web2 30 "$DOM,www.$DOM"
+    signed mail1 30 "mail.$DOM"
+    signed mailx 30 "other.$DOM"
+    stop_dns
+    start_dns
+    stub_resolver
+    export DOCTOR_DNS_PORT=$DNS_PORT
+    v-delete-user "$USR" > /dev/null 2>&1 || true
+    v-add-user "$USR" "$PASS" "$USR@example.invalid" default > /dev/null
+    v-add-web-domain "$USR" "$DOM" '' yes "www.$DOM" > /dev/null
+    v-add-mail-domain "$USR" "$DOM" > /dev/null
 }
 
 teardown_file() {
+    v-delete-user "$USR" > /dev/null 2>&1 || true
+    stop_dns
     rm -rf "$DD"
     [ -d "$SAVE/doctor" ] && mv "$SAVE/doctor" "$DD"
     if [ -s "$SAVE/resolver" ]; then
@@ -197,7 +280,7 @@ EOF
     sed -i '/^DOCTOR_RESOLVER=/d' "$ARCPANEL/conf/arcpanel.conf"
     run v-list-sys-config json
     assert_equal "$(jq -r .config.DOCTOR_RESOLVER <<< "$output")" 1.1.1.1
-    v-change-sys-config-value DOCTOR_RESOLVER "$NORESOLVER" > /dev/null
+    stub_resolver
 }
 
 @test "Doctor: a server run writes server.json (root:arcpanelweb 0640) with 15 results and the score" {
@@ -226,6 +309,7 @@ EOF
 
 @test "Doctor: v-run-sys-doctor starts a doctor.run job and the job writes the result" {
     rm -rf "$DD"
+    v-change-sys-config-value DOCTOR_RESOLVER "$NORESOLVER" > /dev/null
     run v-run-sys-doctor system '' bats-doctor
     assert_success
     id=$output
@@ -236,6 +320,7 @@ EOF
     assert_equal "$(job_field "$id" ACTOR)" bats-doctor
     assert_equal "$(job_field "$id" RESOURCE)" /system/doctor
     run wait_job "$id"
+    stub_resolver
     assert_output succeeded
     assert_file_exists "$DD/server.json"
     run grep -c '^server: score' "$JOB_DIR/$id.log"
@@ -449,13 +534,322 @@ EOF
 }
 
 @test "server.ptr: a resolver that does not answer warns that the DNS checks were skipped" {
-    v-change-sys-config-value DOCTOR_RESOLVER 127.0.0.1 > /dev/null
     DOCTOR_DNS_PORT=39954 run check server.ptr
-    v-change-sys-config-value DOCTOR_RESOLVER "$NORESOLVER" > /dev/null
     if lib 'ip=$(doctor_main_ip); doctor_is_ipv4 "$ip" && doctor_ip4_private "$ip"'; then
         assert_equal "$(jq -r .status <<< "$output")" skip
     else
         assert_equal "$(jq -r .status <<< "$output")" warn
         assert_output --partial 'The resolver 127.0.0.1 did not answer'
     fi
+}
+
+@test "server.ptr: the PTR of the main address must name the hostname" {
+    ip=$(lib doctor_main_ip)
+    if lib "doctor_is_ipv4 $ip && doctor_ip4_private $ip"; then
+        skip "the main address $ip is private"
+    fi
+    rev=$(awk -F. '{ print $4 "." $3 "." $2 "." $1 }' <<< "$ip").in-addr.arpa
+    zone "$rev PTR host.doctor.test" "host.doctor.test A $ip"
+    DOCTOR_HOSTNAME=host.doctor.test run check server.ptr
+    assert_equal "$(jq -r .status <<< "$output")" ok
+    DOCTOR_HOSTNAME=other.doctor.test run check server.ptr
+    assert_equal "$(jq -r .status <<< "$output")" warn
+    zone "host.doctor.test A $ip"
+    DOCTOR_HOSTNAME=host.doctor.test run check server.ptr
+    assert_equal "$(jq -r .status <<< "$output")" warn
+    assert_output --partial 'has no PTR record'
+}
+
+#----------------------------------------------------------#
+#                      Web checks                          #
+#----------------------------------------------------------#
+
+@test "Doctor: 7 web and 5 mail checks" {
+    run lib 'for s in web mail; do for f in $(doctor_check_files $s); do doctor_check_meta "$f"; done; done'
+    assert_equal "$(jq -rs '[.[] | select(.scope == "web")] | length' <<< "$output")" 7
+    assert_equal "$(jq -rs '[.[] | select(.scope == "mail")] | length' <<< "$output")" 5
+    assert_equal "$(jq -rs '[.[] | select(.scope as $s | .id | startswith($s + "."))] | length' <<< "$output")" 12
+}
+
+@test "web.dns-a: every name must resolve to the domain's address (NAT-aware); a proxy warns" {
+    ip=$(pub_ip)
+    zone "$DOM A $ip" "www.$DOM A $ip"
+    run check web.dns-a "$USR" "$DOM"
+    assert_equal "$(jq -r .status <<< "$output")" ok
+    assert_equal "$(jq -r .value <<< "$output")" "$ip"
+    zone "$DOM A $ip" "www.$DOM A 203.0.113.9"
+    run check web.dns-a "$USR" "$DOM"
+    assert_equal "$(jq -r .status <<< "$output")" fail
+    assert_output --partial "www.$DOM (203.0.113.9)"
+    assert_output --partial "Publish an A record with the address $ip"
+    assert_equal "$(jq -r .link <<< "$output")" ''
+    zone "$DOM A $ip"
+    run check web.dns-a "$USR" "$DOM"
+    assert_output --partial "www.$DOM (no A record)"
+    zone "$DOM A 104.16.0.1" "www.$DOM A 104.16.0.2"
+    run check web.dns-a "$USR" "$DOM"
+    assert_equal "$(jq -r .status <<< "$output")" warn
+    assert_output --partial 'proxy'
+    zone "$DOM A $ip"
+    echo "$DOM" > "$DNS/drop"
+    run check web.dns-a "$USR" "$DOM"
+    assert_equal "$(jq -r .status <<< "$output")" skip
+    assert_output --partial 'The resolver 127.0.0.1 did not answer.'
+}
+
+@test "web.dns-a: a zone on this server links the DNS page" {
+    v-add-dns-domain "$USR" "$DOM" "$(pub_ip)" > /dev/null
+    zone "$DOM A 203.0.113.9"
+    run check web.dns-a "$USR" "$DOM"
+    v-delete-dns-domain "$USR" "$DOM" > /dev/null
+    assert_equal "$(jq -r .status <<< "$output")" fail
+    assert_equal "$(jq -r .link <<< "$output")" dns
+    assert_output --partial "in the DNS zone $DOM on this server"
+}
+
+@test "web.dns-aaaa: skipped without IPv6, warns when the AAAA record is missing or elsewhere" {
+    run status_of web.dns-aaaa "$USR" "$DOM"
+    assert_output skip
+    conf=$ARCPANEL/data/users/$USR/web.conf
+    cp "$conf" "$FIX/web.conf.save"
+    sed -i "/^DOMAIN='$DOM'/ s/IP6='[^']*'/IP6='2001:db8::10'/" "$conf"
+    zone "$DOM AAAA 2001:db8::10"
+    run status_of web.dns-aaaa "$USR" "$DOM"
+    ok=$output
+    zone "$DOM AAAA 2001:db8::99"
+    run status_of web.dns-aaaa "$USR" "$DOM"
+    elsewhere=$output
+    zone "$DOM A 192.0.2.10"
+    run status_of web.dns-aaaa "$USR" "$DOM"
+    missing=$output
+    cp "$FIX/web.conf.save" "$conf"
+    assert_equal "$ok $elsewhere $missing" 'ok warn warn'
+}
+
+@test "web.ssl-*: skipped while SSL is off" {
+    for id in web.ssl-valid web.ssl-aliases web.ssl-expiry web.https-redirect; do
+        run status_of "$id" "$USR" "$DOM"
+        assert_output skip
+    done
+}
+
+@test "web.ssl-valid and web.ssl-aliases: an untrusted certificate without the alias fails with the Let's Encrypt fix" {
+    v-add-web-domain-ssl "$USR" "$DOM" "$(ssl_dir web1 "$DOM")" > /dev/null
+    eventually test "$(served_names)" = "$DOM"
+    run check web.ssl-valid "$USR" "$DOM"
+    assert_equal "$(jq -r .status <<< "$output")" fail
+    assert_equal "$(jq -c .fix.argv <<< "$output")" "[\"v-add-letsencrypt-domain\",\"$USR\",\"$DOM\",\"www.$DOM\"]"
+    assert_equal "$(jq -r .fix.command <<< "$output")" "v-add-letsencrypt-domain $USR $DOM www.$DOM"
+    DOCTOR_CA_FILE=$CERTS/ca.crt run check web.ssl-valid "$USR" "$DOM"
+    assert_equal "$(jq -r .status <<< "$output")" ok
+    assert_equal "$(jq -c .fix <<< "$output")" null
+    DOCTOR_CA_FILE=$CERTS/ca.crt run check web.ssl-aliases "$USR" "$DOM"
+    assert_equal "$(jq -r .status <<< "$output")" fail
+    assert_equal "$(jq -r .message <<< "$output")" "www.$DOM is not in the certificate."
+    assert_equal "$(jq -r .fix.argv[0] <<< "$output")" v-add-letsencrypt-domain
+    DOCTOR_CA_FILE=$CERTS/ca.crt DOCTOR_NOW=$(($(date +%s) + 40 * 86400)) run check web.ssl-valid "$USR" "$DOM"
+    assert_equal "$(jq -r .status <<< "$output")" fail
+    assert_output --partial 'expired'
+}
+
+@test "web.ssl-expiry: warns within 14 days, fails within 3 days" {
+    run status_of web.ssl-expiry "$USR" "$DOM"
+    assert_output ok
+    DOCTOR_NOW=$(($(date +%s) + 20 * 86400)) run check web.ssl-expiry "$USR" "$DOM"
+    assert_equal "$(jq -r .status <<< "$output")" warn
+    assert_equal "$(jq -r .fix.argv[0] <<< "$output")" v-add-letsencrypt-domain
+    DOCTOR_NOW=$(($(date +%s) + 28 * 86400)) run status_of web.ssl-expiry "$USR" "$DOM"
+    assert_output fail
+    DOCTOR_NOW=$(($(date +%s) + 40 * 86400)) run check web.ssl-expiry "$USR" "$DOM"
+    assert_output --partial 'expired'
+}
+
+@test "web.ssl-aliases: a certificate with every alias passes" {
+    v-change-web-domain-sslcert "$USR" "$DOM" "$(ssl_dir web2 "$DOM")" > /dev/null
+    eventually test "$(served_names)" = "$DOM,www.$DOM"
+    run status_of web.ssl-aliases "$USR" "$DOM"
+    assert_output ok
+}
+
+@test "web.https-redirect: warns without a permanent redirect, with the fix v-add-web-domain-ssl-force" {
+    run check web.https-redirect "$USR" "$DOM"
+    assert_equal "$(jq -r .status <<< "$output")" warn
+    assert_equal "$(jq -r .fix.command <<< "$output")" "v-add-web-domain-ssl-force $USR $DOM"
+    v-add-web-domain-ssl-force "$USR" "$DOM" > /dev/null
+    eventually test "$(status_of web.https-redirect "$USR" "$DOM")" = ok
+    run check web.https-redirect "$USR" "$DOM"
+    assert_equal "$(jq -r .status <<< "$output")" ok
+    echo '302 https://x/' > "$FIX/http-$DOM"
+    run status_of web.https-redirect "$USR" "$DOM"
+    assert_output warn
+}
+
+@test "web.php-eol: an eol version fails, a security-only version warns" {
+    printf '{"8.1":{"USED_BY":"other/a.test,%s/%s","STATUS":"eol","EOL":"2025-12-31"},"8.4":{"USED_BY":"","STATUS":"active"}}\n' "$USR" "$DOM" > "$FIX/php-versions"
+    run check web.php-eol "$USR" "$DOM"
+    assert_equal "$(jq -r .status <<< "$output")" fail
+    assert_equal "$(jq -r .value <<< "$output")" 8.1
+    assert_equal "$(jq -r .link <<< "$output")" php
+    sed -i 's/"eol"/"security"/' "$FIX/php-versions"
+    run status_of web.php-eol "$USR" "$DOM"
+    assert_output warn
+    sed -i 's/"security"/"active"/' "$FIX/php-versions"
+    run status_of web.php-eol "$USR" "$DOM"
+    assert_output ok
+    echo '{"8.4":{"USED_BY":"","STATUS":"active"}}' > "$FIX/php-versions"
+    run status_of web.php-eol "$USR" "$DOM"
+    assert_output skip
+}
+
+#----------------------------------------------------------#
+#                      Mail checks                         #
+#----------------------------------------------------------#
+
+@test "mail.mx: an MX record must point to this server" {
+    ip=$(pub_ip)
+    zone "$DOM MX 10 mail.$DOM" "mail.$DOM A $ip"
+    run status_of mail.mx "$USR" "$DOM"
+    assert_output ok
+    zone "$DOM MX 10 mx.elsewhere.test" "mx.elsewhere.test A 203.0.113.5"
+    run check mail.mx "$USR" "$DOM"
+    assert_equal "$(jq -r .status <<< "$output")" fail
+    assert_equal "$(jq -r .value <<< "$output")" mx.elsewhere.test
+    zone "$DOM A $ip"
+    run status_of mail.mx "$USR" "$DOM"
+    assert_output fail
+    echo "$DOM" > "$DNS/drop"
+    run status_of mail.mx "$USR" "$DOM"
+    assert_output skip
+}
+
+@test "mail.spf: missing fails; ip4, a, mx and include allow this server; another server warns" {
+    ip=$(pub_ip)
+    zone "$DOM A $ip"
+    run status_of mail.spf "$USR" "$DOM"
+    assert_output fail
+    zone "$DOM TXT v=spf1 ip4:$ip -all"
+    run status_of mail.spf "$USR" "$DOM"
+    assert_output ok
+    zone "$DOM TXT v=spf1 ip4:${ip%.*}.0/24 ?all"
+    run status_of mail.spf "$USR" "$DOM"
+    assert_output ok
+    zone "$DOM TXT v=spf1 a -all" "$DOM A $ip"
+    run status_of mail.spf "$USR" "$DOM"
+    assert_output ok
+    zone "$DOM TXT v=spf1 mx -all" "$DOM MX 10 mail.$DOM" "mail.$DOM A $ip"
+    run status_of mail.spf "$USR" "$DOM"
+    assert_output ok
+    zone "$DOM TXT v=spf1 include:_spf.$DOM -all" "_spf.$DOM TXT v=spf1 ip4:$ip ~all"
+    run status_of mail.spf "$USR" "$DOM"
+    assert_output ok
+    zone "$DOM TXT v=spf1 ip4:203.0.113.5 -all"
+    run check mail.spf "$USR" "$DOM"
+    assert_equal "$(jq -r .status <<< "$output")" warn
+    assert_output --partial 'does not allow this server'
+    zone "$DOM TXT v=spf1 ip4:$ip -all" "$DOM TXT v=spf1 a -all"
+    run check mail.spf "$USR" "$DOM"
+    assert_equal "$(jq -r .status <<< "$output")" warn
+    assert_output --partial '2 SPF records'
+}
+
+@test "mail.dkim: off fails with the fix v-add-mail-domain-dkim; the published key must match" {
+    key=$(grep -v 'KEY-----' "$ARCPANEL/data/users/$USR/mail/$DOM.pub" | tr -d '\n')
+    zone "mail._domainkey.$DOM TXT v=DKIM1; k=rsa; p=$key"
+    run status_of mail.dkim "$USR" "$DOM"
+    assert_output ok
+    zone "mail._domainkey.$DOM TXT v=DKIM1; k=rsa; p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAother"
+    run status_of mail.dkim "$USR" "$DOM"
+    assert_output warn
+    zone "$DOM A 192.0.2.10"
+    run check mail.dkim "$USR" "$DOM"
+    assert_equal "$(jq -r .status <<< "$output")" warn
+    assert_output --partial 'is not published'
+    v-delete-mail-domain-dkim "$USR" "$DOM" > /dev/null
+    run check mail.dkim "$USR" "$DOM"
+    v-add-mail-domain-dkim "$USR" "$DOM" > /dev/null
+    assert_equal "$(jq -r .status <<< "$output")" fail
+    assert_equal "$(jq -c .fix.argv <<< "$output")" "[\"v-add-mail-domain-dkim\",\"$USR\",\"$DOM\"]"
+}
+
+@test "mail.dmarc: warns without a _dmarc record" {
+    zone "_dmarc.$DOM TXT v=DMARC1; p=quarantine"
+    run status_of mail.dmarc "$USR" "$DOM"
+    assert_output ok
+    zone "$DOM A 192.0.2.10"
+    run status_of mail.dmarc "$USR" "$DOM"
+    assert_output warn
+}
+
+@test "mail.ssl: no certificate fails with the Let's Encrypt fix for mail; the certificate must cover mail.DOMAIN" {
+    run check mail.ssl "$USR" "$DOM"
+    assert_equal "$(jq -r .status <<< "$output")" fail
+    assert_equal "$(jq -c .fix.argv <<< "$output")" "[\"v-add-letsencrypt-domain\",\"$USR\",\"$DOM\",\"\",\"yes\"]"
+    assert_equal "$(jq -r .fix.command <<< "$output")" "v-add-letsencrypt-domain $USR $DOM '' yes"
+    v-add-mail-domain-ssl "$USR" "$DOM" "$(ssl_dir mail1 "$DOM")" > /dev/null
+    DOCTOR_CA_FILE=$CERTS/ca.crt run status_of mail.ssl "$USR" "$DOM"
+    assert_output ok
+    run status_of mail.ssl "$USR" "$DOM"
+    assert_output fail
+    v-delete-mail-domain-ssl "$USR" "$DOM" > /dev/null
+    v-add-mail-domain-ssl "$USR" "$DOM" "$(ssl_dir mailx "$DOM")" > /dev/null
+    DOCTOR_CA_FILE=$CERTS/ca.crt run check mail.ssl "$USR" "$DOM"
+    assert_equal "$(jq -r .status <<< "$output")" fail
+    assert_output --partial "does not cover mail.$DOM"
+}
+
+#----------------------------------------------------------#
+#                     Domain runs                          #
+#----------------------------------------------------------#
+
+@test "Doctor: a domain run writes the 12 checks of the domain; the summaries list it" {
+    zone "$DOM A $(pub_ip)" "www.$DOM A $(pub_ip)"
+    run v-run-sys-doctor "$USR" "$DOM" cli now
+    assert_success
+    assert_output --regexp "^$DOM: score [0-9]+ "
+    file=$ARCPANEL/data/users/$USR/doctor/$DOM.json
+    assert_file_exists "$file"
+    assert_equal "$(stat -c '%U:%G %a' "$file")" 'root:arcpanelweb 640'
+    assert_equal "$(jq '.checks | length' "$file")" 12
+    assert_equal "$(jq -r '[.checks[] | select(.id == "web.dns-a")][0].status' "$file")" ok
+    run v-list-sys-doctor "$USR" "$DOM" json
+    assert_equal "$(jq -c . <<< "$output")" "$(jq -c . "$file")"
+    run v-list-sys-doctor "$USR" json
+    assert_equal "$(jq -r '.[0].domain' <<< "$output")" "$DOM"
+    assert_equal "$(jq -r '.[0].score' <<< "$output")" "$(jq -r .score "$file")"
+    run v-list-sys-doctor all json
+    assert_equal "$(jq -r --arg u "$USR" '[.[] | select(.user == $u)] | length' <<< "$output")" 1
+    run v-run-sys-doctor "$USR" nosuch.test
+    assert_failure 3
+}
+
+@test "Doctor: a user run checks every domain of the user as a doctor.run job" {
+    v-change-sys-config-value DOCTOR_RESOLVER "$NORESOLVER" > /dev/null
+    run v-run-sys-doctor "$USR" "$DOM" bats-doctor
+    id=$output
+    run wait_job "$id" 300
+    stub_resolver
+    assert_output succeeded
+    assert_equal "$(job_field "$id" OBJECT)" "doctor:$USR:$DOM"
+    assert_equal "$(job_field "$id" USER)" "$USR"
+    assert_equal "$(job_field "$id" RESOURCE)" "/users/$USR/doctor/$DOM"
+    run grep -c "^$DOM: score" "$JOB_DIR/$id.log"
+    assert_output 1
+}
+
+@test "Doctor: a suspended web domain skips its checks" {
+    v-suspend-web-domain "$USR" "$DOM" > /dev/null
+    run v-run-sys-doctor "$USR" "$DOM" cli now
+    v-unsuspend-web-domain "$USR" "$DOM" > /dev/null
+    file=$ARCPANEL/data/users/$USR/doctor/$DOM.json
+    assert_equal "$(jq -r '[.checks[] | select(.id | startswith("web.")) | .status] | unique | join(",")' "$file")" skip
+    assert_equal "$(jq -r '[.checks[] | select(.id | startswith("web."))][0].message' "$file")" 'The web domain is suspended.'
+}
+
+@test "Doctor: deleting the domain deletes its result" {
+    file=$ARCPANEL/data/users/$USR/doctor/$DOM.json
+    v-run-sys-doctor "$USR" "$DOM" cli now > /dev/null
+    assert_file_exists "$file"
+    v-delete-mail-domain "$USR" "$DOM" > /dev/null
+    assert_file_not_exists "$file"
+    v-add-mail-domain "$USR" "$DOM" > /dev/null
 }

@@ -436,19 +436,17 @@ doctor_verify_args() {
 	fi
 }
 
-# The certificates served on HOST:PORT for the name SNI, PEM, leaf first.
-# Sets DOCTOR_VERIFY (the verify code and text of openssl, 0 (ok) when the
-# chain is trusted). Returns 2 when nothing answered.
+# The certificates served on HOST:PORT for the name SNI: sets CERT_PEM (PEM,
+# leaf first) and DOCTOR_VERIFY (the verify code and text of openssl, 0 (ok)
+# when the chain is trusted). Returns 2 when nothing answered.
 doctor_served_certs() {
 	local host="$1" port="$2" sni="$3" out
 	doctor_verify_args
 	out=$(timeout 10 openssl s_client -connect "$host:$port" -servername "$sni" -showcerts \
 		"${DOCTOR_VERIFY_ARGS[@]}" < /dev/null 2> /dev/null)
 	DOCTOR_VERIFY=$(grep -m1 -oE 'Verify return code: [0-9]+ \(.*\)' <<< "$out" | sed 's/^Verify return code: //')
-	if ! grep -q 'BEGIN CERTIFICATE' <<< "$out"; then
-		return 2
-	fi
-	sed -n '/BEGIN CERTIFICATE/,/END CERTIFICATE/p' <<< "$out"
+	CERT_PEM=$(sed -n '/BEGIN CERTIFICATE/,/END CERTIFICATE/p' <<< "$out")
+	[ -n "$CERT_PEM" ] || return 2
 }
 
 # Verify the certificate FILE (PEM, leaf first, maybe with its chain) and
@@ -662,4 +660,90 @@ doctor_list_summary() {
 				failing: [.checks[] | select(.status == "fail") | .id]}'
 		done
 	done | jq -s 'sort_by(.score // 101, .user, .domain)'
+}
+
+#----------------------------------------------------------#
+#                    Domain helpers                        #
+#----------------------------------------------------------#
+
+# Output of a command kept for the run in DOCTOR_CACHE: doctor_cached NAME
+# COMMAND... (with a fixture NAME it is the fixture)
+doctor_cached() {
+	local name="$1" file out
+	shift
+	file="${DOCTOR_CACHE-}/cmd-$name"
+	if [ -n "${DOCTOR_CACHE-}" ] && [ -f "$file" ]; then
+		cat "$file"
+		return 0
+	fi
+	out=$(doctor_src "$name" "$@") || return 1
+	if [ -n "${DOCTOR_CACHE-}" ]; then
+		printf '%s\n' "$out" > "$file.$$"
+		mv -f "$file.$$" "$file"
+	fi
+	printf '%s\n' "$out"
+}
+
+# The aliases of a web line, one per line; ALL=yes keeps wildcards
+doctor_aliases() {
+	local line="$1" alias
+	for alias in $(doctor_field "$line" ALIAS | tr ',' ' '); do
+		if [[ "$alias" == \** ]] && [ "${2-}" != 'yes' ]; then
+			continue
+		fi
+		echo "${alias,,}"
+	done
+}
+
+# The aliases a Let's Encrypt fix asks for (no wildcards), comma separated
+doctor_le_aliases() {
+	doctor_aliases "$1" | paste -sd, -
+}
+
+# The ports of HTTP and HTTPS of the web domains (the proxy's when there is
+# one)
+doctor_http_port() {
+	if [ -n "${PROXY_SYSTEM-}" ]; then
+		echo "${PROXY_PORT:-80}"
+	else
+		echo "${WEB_PORT:-80}"
+	fi
+}
+doctor_https_port() {
+	if [ -n "${PROXY_SYSTEM-}" ]; then
+		echo "${PROXY_SSL_PORT:-443}"
+	else
+		echo "${WEB_SSL_PORT:-443}"
+	fi
+}
+
+# The certificate the server serves for the web DOMAIN with the local
+# address of IP: sets CERT_PEM and DOCTOR_VERIFY (kept for the run).
+# Returns 2 when nothing answered.
+doctor_domain_cert() {
+	local domain="$1" ip="$2" key rc=0
+	key="${DOCTOR_CACHE-}/cert-$domain"
+	if [ -n "${DOCTOR_CACHE-}" ] && [ -f "$key.pem" ]; then
+		CERT_PEM=$(cat "$key.pem")
+		DOCTOR_VERIFY=$(cat "$key.verify")
+		[ -n "$CERT_PEM" ] || return 2
+		return 0
+	fi
+	doctor_served_certs "$(doctor_local_ip "$ip")" "$(doctor_https_port)" "$domain" || rc=2
+	if [ -n "${DOCTOR_CACHE-}" ]; then
+		printf '%s\n' "$CERT_PEM" > "$key.pem.$$"
+		printf '%s\n' "$DOCTOR_VERIFY" > "$key.verify"
+		mv -f "$key.pem.$$" "$key.pem"
+	fi
+	[ "$rc" -eq 0 ] || return 2
+}
+
+# The verify result of openssl for people: "self-signed" for 18 and 19
+doctor_verify_text() {
+	case "${1%% *}" in
+		10) echo 'it has expired' ;;
+		18 | 19) echo 'it is self-signed' ;;
+		2 | 20 | 21) echo 'its chain is incomplete or its issuer is not trusted' ;;
+		*) echo "${1#* }" | tr -d '()' ;;
+	esac
 }
