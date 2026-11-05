@@ -205,7 +205,10 @@ deploy_valid_ref() {
 	[[ "$ref" =~ ^[A-Za-z0-9._/@+-]+$ ]] || return 1
 	[[ "$ref" != -* ]] || return 1
 	if command -v git > /dev/null 2>&1; then
-		git check-ref-format --branch "$ref" > /dev/null 2>&1
+		# From /, not the caller's folder: --branch looks for a repository
+		# there and fails (128) in a folder of a checkout git cannot read,
+		# such as a Windows worktree seen from WSL
+		git -C / check-ref-format --branch "$ref" > /dev/null 2>&1
 	else
 		[[ "$ref" != *..* && "$ref" != */ && "$ref" != *.lock && "$ref" != /* && "$ref" != *//* ]]
 	fi

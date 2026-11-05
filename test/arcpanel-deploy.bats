@@ -854,6 +854,19 @@ GH=https://token.actions.githubusercontent.com
     v-list-web-domain-deploy "$U1" "$D1" json | jq -e ".\"$D1\".PUBLISHERS | length == 2" > /dev/null
 }
 
+@test "publisher: a ref is checked the same way whatever the working folder of the caller" {
+    # A folder inside a git worktree whose .git file names a path git cannot
+    # read (a Windows checkout seen from WSL) made git check-ref-format fail
+    mkdir -p "$BATS_TEST_TMPDIR/checkout"
+    echo 'gitdir: D:/project/nowhere/.git/worktrees/x' > "$BATS_TEST_TMPDIR/checkout/.git"
+    cd "$BATS_TEST_TMPDIR/checkout"
+    run v-add-web-domain-deploy-publisher "$U1" "$D1" "$GH" acme/cwd refs/heads/main
+    cd - > /dev/null
+    assert_success
+    run v-delete-web-domain-deploy-publisher "$U1" "$D1" "$output"
+    assert_success
+}
+
 @test "endpoint: an unknown id, the other mode or a suspended domain read as unknown" {
     id=$(conf_value "$U1" "$D1" ID)
     run v-get-web-domain-deploy-endpoint aaaaaaaaaaaa upload
