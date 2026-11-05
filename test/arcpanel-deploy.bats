@@ -34,16 +34,22 @@ web_value() {
     grep -F "DOMAIN='$2' " "$ARCPANEL/data/users/$1/web.conf" | grep -oE "(^| )$3='[^']*'" | cut -d"'" -f2
 }
 
+# A value of the deploy job ID of USER (E15: data/jobs/ID.conf)
 task_value() {
-    grep -oE "(^| )$3='[^']*'" "$ARCPANEL/data/users/$1/tasks/$2.conf" | cut -d"'" -f2
+    grep -oE "(^| )$3='[^']*'" "$ARCPANEL/data/jobs/$2.conf" | cut -d"'" -f2
 }
 
-# Wait until the task of USER ID has ended (succeeded or failed)
+# The queued deploy job of USER DOMAIN
+pending_of() {
+    v-list-web-domain-deploy "$1" "$2" json | jq -r '.[].PENDING'
+}
+
+# Wait until the task of USER ID has ended (succeeded, failed or cancelled)
 wait_task() {
     local i status
     for i in $(seq 1 240); do
         status=$(task_value "$1" "$2" STATUS)
-        if [ "$status" = 'succeeded' ] || [ "$status" = 'failed' ]; then
+        if [ "$status" = 'succeeded' ] || [ "$status" = 'failed' ] || [ "$status" = 'cancelled' ]; then
             echo "$status"
             return 0
         fi
@@ -219,9 +225,9 @@ teardown_file() {
     make_site one one
     prev=$(web_value "$U1" "$D1" CUSTOM_DOCROOT)
     task=$(deploy_archive "$U1" "$D1" "$WORK/one.tar.gz")
-    [ "$(task_value "$U1" "$task" STATUS)" = 'succeeded' ] || cat "$ARCPANEL/data/users/$U1/tasks/$task.log"
+    [ "$(task_value "$U1" "$task" STATUS)" = 'succeeded' ] || cat "$ARCPANEL/data/jobs/$task.log"
     [ "$(task_value "$U1" "$task" STATUS)" = 'succeeded' ]
-    [ "$(task_value "$U1" "$task" KIND)" = 'deploy' ]
+    [ "$(task_value "$U1" "$task" TYPE)" = 'deploy.run' ]
     release=$(conf_value "$U1" "$D1" CURRENT)
     [[ "$release" =~ ^[0-9]{8}-[0-9]{6}$ ]]
     [ "$(readlink "/home/$U1/web/$D1/current")" = "releases/$release" ]
@@ -490,14 +496,14 @@ refused() {
     sleep 2
     t2=$(v-schedule-web-domain-deploy "$U1" "$D1" --artifact "$WORK/seven.tar.gz")
     t3=$(v-schedule-web-domain-deploy "$U1" "$D1" --artifact "$WORK/eight.tar.gz")
-    [ "$(task_value "$U1" "$t2" STATUS)" = 'failed' ]
-    [ "$(task_value "$U1" "$t2" ERROR)" = 'replaced by a newer request' ]
+    [ "$(task_value "$U1" "$t2" STATUS)" = 'cancelled' ]
+    [ "$(task_value "$U1" "$t2" ERROR)" = "replaced by $t3" ]
     [ "$(task_value "$U1" "$t3" STATUS)" = 'queued' ]
-    [ "$(conf_value "$U1" "$D1" PENDING)" = "$t3" ]
+    [ "$(pending_of "$U1" "$D1")" = "$t3" ]
     v-change-web-domain-deploy "$U1" "$D1" HEALTH_PATH ''
     wait_task "$U1" "$t1"
     [ "$(wait_task "$U1" "$t3")" = 'succeeded' ]
-    [ "$(conf_value "$U1" "$D1" PENDING)" = '' ]
+    [ "$(pending_of "$U1" "$D1")" = '' ]
     for i in $(seq 1 20); do
         [ "$(fetch "$D1" /index.html)" = 'eight' ] && break
         sleep 0.5
@@ -590,7 +596,7 @@ repo_push() {
     chmod 700 "/home/$GITUSER/.ssh"
     chmod 600 "/home/$GITUSER/.ssh/authorized_keys"
     task=$(v-schedule-web-domain-deploy "$U1" "$D3")
-    [ "$(wait_task "$U1" "$task")" = 'succeeded' ] || cat "$ARCPANEL/data/users/$U1/tasks/$task.log"
+    [ "$(wait_task "$U1" "$task")" = 'succeeded' ] || cat "$ARCPANEL/data/jobs/$task.log"
     [ "$(task_value "$U1" "$task" STATUS)" = 'succeeded' ]
     release=$(conf_value "$U1" "$D3" CURRENT)
     grep -q "SOURCE='pull'" "/home/$U1/web/$D3/releases/$release/.arcpanel-release"
@@ -629,7 +635,7 @@ EOS
     repo_push custom > /dev/null
     v-change-web-domain-deploy "$U1" "$D3" PRESET custom
     task=$(v-schedule-web-domain-deploy "$U1" "$D3")
-    [ "$(wait_task "$U1" "$task")" = 'succeeded' ] || cat "$ARCPANEL/data/users/$U1/tasks/$task.log"
+    [ "$(wait_task "$U1" "$task")" = 'succeeded' ] || cat "$ARCPANEL/data/jobs/$task.log"
     grep -q "custom $D3 $U1" "/home/$U1/web/$D3/current/built.txt"
     grep -q 'php ok' "/home/$U1/web/$D3/current/built.txt"
 }
@@ -662,7 +668,7 @@ EOS
     if [ -z "$(ls -d /home/$U1/.nvm/versions/node/v*/bin 2> /dev/null)" ]; then
         task=$(v-schedule-web-domain-deploy "$U1" "$D3")
         [ "$(wait_task "$U1" "$task")" = 'failed' ]
-        grep -q 'Node.js is not installed' "$ARCPANEL/data/users/$U1/tasks/$task.log"
+        grep -q 'Node.js is not installed' "$ARCPANEL/data/jobs/$task.log"
     fi
     rm -f "$WORK/repo/package.json"
     repo_push nonpm > /dev/null
@@ -688,7 +694,7 @@ EOS
     v-change-web-domain-deploy "$U1" "$D3" SHARED 'storage/ .env'
     v-change-web-domain-deploy "$U1" "$D3" MIGRATE yes
     task=$(v-schedule-web-domain-deploy "$U1" "$D3")
-    [ "$(wait_task "$U1" "$task")" = 'succeeded' ] || tail -n 30 "$ARCPANEL/data/users/$U1/tasks/$task.log"
+    [ "$(wait_task "$U1" "$task")" = 'succeeded' ] || tail -n 30 "$ARCPANEL/data/jobs/$task.log"
     [ "$(task_value "$U1" "$task" STATUS)" = 'succeeded' ]
     assert_file_exists "/home/$U1/web/$D3/current/vendor/autoload.php"
     assert_file_exists "/home/$U1/web/$D3/current/optimized"
@@ -708,7 +714,7 @@ EOS
     task=$(v-schedule-web-domain-deploy "$U1" "$D3")
     [ "$(wait_task "$U1" "$task")" = 'failed' ]
     [ -n "$(task_value "$U1" "$task" ERROR)" ]
-    run grep -c 'tok-e20' "$ARCPANEL/data/users/$U1/tasks/$task.log"
+    run grep -c 'tok-e20' "$ARCPANEL/data/jobs/$task.log"
     assert_output 0
     [ "$(find "/home/$U1/tmp" -name '.arcpanel-deploy.*' | wc -l)" -eq 0 ]
     # A token is one line, for https only

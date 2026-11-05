@@ -78,6 +78,9 @@ if [ -f "$DEPLOY_PORT_CONF" ]; then
 	port_open=yes
 fi
 publishers=$(deploy_publishers_json "$user" "$domain")
+# The running and the queued deploy job (E15)
+conf[RUNNING]=$(deploy_jobs "$user" "$domain" running | tail -n1)
+conf[PENDING]=$(deploy_jobs "$user" "$domain" queued | tail -n1)
 
 json=$(
 	jq -n --arg domain "$domain" --arg id "${conf[ID]}" --arg mode "${conf[MODE]}" \

@@ -65,17 +65,18 @@ releases=$(
 	done | jq -sc '.'
 )
 
+# The deploy jobs of the domain (E15)
 tasks=$(
-	dir=$(qt_dir "$user")
-	if [ -d "$dir" ]; then
-		grep -lE "(^| )KIND='deploy' " "$dir"/*.conf 2> /dev/null | while IFS= read -r file; do
-			grep -qE "(^| )ARGS='$domain " "$file" || continue
+	if [ -d "$JOB_DIR" ]; then
+		grep -rlF --include='*.conf' " OBJECT='deploy:$domain' " "$JOB_DIR" 2> /dev/null | sort -r | while IFS= read -r file; do
+			grep -qF " USER='$user' " "$file" || continue
 			line=$(head -n1 "$file")
-			jq -nc --arg id "$(deploy_kv "$line" ID)" --arg args "$(deploy_kv "$line" ARGS)" \
+			id=$(deploy_kv "$line" ID)
+			jq -nc --arg id "$id" --arg action "$(job_argv_word "$id" 3)" --arg value "$(job_argv_word "$id" 4)" \
 				--arg status "$(deploy_kv "$line" STATUS)" --arg exit "$(deploy_kv "$line" EXIT)" \
 				--arg error "$(deploy_kv "$line" ERROR)" --arg queued "$(deploy_kv "$line" QUEUED)" \
 				--arg start "$(deploy_kv "$line" START)" --arg end "$(deploy_kv "$line" END)" \
-				'{ID: $id, ACTION: ($args | split(" ")[1] // ""), VALUE: ($args | split(" ")[2] // ""),
+				'{ID: $id, ACTION: $action, VALUE: $value,
 					STATUS: $status, EXIT: $exit, ERROR: $error, QUEUED: $queued, START: $start, END: $end}'
 		done
 	fi | jq -sc 'sort_by(.ID) | reverse | .[0:20]'

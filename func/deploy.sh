@@ -12,9 +12,9 @@
 #   ~/web/<domain>/releases/<YYYYMMDD-HHMMSS>/    one release each          #
 #   ~/web/<domain>/shared/                        linked into every release #
 #   ~/web/<domain>/current -> releases/<id>       the live release          #
-# Each deploy is a task record (func/queuetask.sh, KIND deploy) run at once #
-# by a transient unit in the user's slice; one runs per domain at a time,   #
-# later requests collapse into the newest (PENDING).                        #
+# Each deploy is a job (func/job.sh, deploy.run or deploy.rollback, E15)   #
+# run by a transient unit in the user's slice; one runs per domain at a    #
+# time, later requests collapse into the newest queued one.                 #
 # Callers source func/main.sh, func/domain.sh, func/tenancy.sh and          #
 # func/queuetask.sh first.                                                  #
 # See docs/features/specs/2026-10-29-001-e20-git-deploy-design.md.          #
@@ -370,117 +370,53 @@ deploy_set_docroot() {
 #                     Runner                               #
 #----------------------------------------------------------#
 
-deploy_unit() {
-	echo "arcpanel-deploy-$1-$2"
+# Since E15 a deploy is a job of type deploy.run (archive, pull) or
+# deploy.rollback with OBJECT deploy:DOMAIN (func/job.sh, class deploy): one
+# runs per domain, a newer request replaces the queued one, and the job
+# queue starts the next one when a deploy ends (E20 D15).
+
+# shellcheck source=/usr/local/arcpanel/func/job.sh
+source "$ARCPANEL/func/job.sh"
+
+# The deploy jobs of USER DOMAIN with STATUS (queued or running), oldest
+# first
+deploy_jobs() {
+	local owner="$1" name="$2" status="$3" id
+	for id in $(job_active_ids); do
+		job_read "$id" || continue
+		[ "${JOB[OBJECT]}" = "deploy:$name" ] && [ "${JOB[USER]}" = "$owner" ] \
+			&& [ "${JOB[STATUS]}" = "$status" ] && echo "$id"
+	done
 }
 
-deploy_has_systemd() {
-	[ -d /run/systemd/system ] && command -v systemd-run > /dev/null 2>&1
-}
-
-# Whether the deploy task ID of USER is still alive (queued or running and
-# its unit or process exists)
-deploy_task_alive() {
-	local owner="$1" task="$2" status pid
-	[ -n "$task" ] || return 1
-	status=$(qt_get "$owner" "$task" STATUS)
-	[ "$status" = 'queued' ] || [ "$status" = 'running' ] || return 1
-	if deploy_has_systemd; then
-		systemctl is-active --quiet "$(deploy_unit "$owner" "$task").service" && return 0
-	fi
-	pid=$(qt_get "$owner" "$task" PID)
-	[[ "$pid" =~ ^[0-9]+$ ]] && kill -0 "$pid" 2> /dev/null
-}
-
-# Start the runner of task ID for USER DOMAIN now
-deploy_start() {
-	local owner="$1" name="$2" task="$3" uid limit
-	uid=$(id -u "$owner")
-	limit=$(($(deploy_build_timeout) + 600))
-	if deploy_has_systemd; then
-		systemd-run --quiet --collect --unit="$(deploy_unit "$owner" "$task")" \
-			--slice="user-$uid.slice" -p Nice=10 -p IOSchedulingClass=idle \
-			-p RuntimeMaxSec="$limit" -E LANG=C.UTF-8 \
-			"$BIN/v-run-queue-task" "$owner" "$task" -- \
-			"$BIN/v-run-web-domain-deploy" "$owner" "$name" "$task" > /dev/null 2>&1
-	else
-		setsid nohup nice -n 10 ionice -c 3 "$BIN/v-run-queue-task" "$owner" "$task" -- \
-			"$BIN/v-run-web-domain-deploy" "$owner" "$name" "$task" > /dev/null 2>&1 < /dev/null &
-	fi
-}
-
-# Hand the domain on to the request that waited, or mark it idle. Caller
-# holds deploy_lock.
-deploy_handover_unlocked() {
-	local owner="$1" name="$2" pending
-	pending=$(deploy_get "$owner" "$name" PENDING)
-	if [ -n "$pending" ] && [ "$(qt_get "$owner" "$pending" STATUS)" = 'queued' ]; then
-		deploy_set "$owner" "$name" "RUNNING=$pending" PENDING=
-		deploy_start "$owner" "$name" "$pending"
-	else
-		deploy_set "$owner" "$name" RUNNING= PENDING=
-	fi
-}
-
-# Create a deploy task (ARGS "DOMAIN ACTION [VALUE]") and run it now, or
-# keep it as the pending request when a deploy runs (the newest wins).
-# Prints the task ID.
+# Create a deploy job (ARGS "DOMAIN ACTION [VALUE]") and run it now, or keep
+# it queued while a deploy of the domain runs (the newest request wins).
+# Prints the job ID.
 deploy_schedule() {
-	local owner="$1" name="$2" args="$3" artifact="$4" running pending
-	user=$owner
-	qt_lock
-	qt_create_unlocked deploy "$args"
-	qt_cleanup_unlocked
-	qt_unlock
+	local owner="$1" name="$2" args="$3" artifact="$4" action value type
+	read -r _ action value <<< "$args"
+	type=deploy.run
+	[ "$action" = 'rollback' ] && type=deploy.rollback
+	job_create "$type" "$owner" "deploy:$name" "$(job_default_actor)" \
+		"/users/$owner/web-domains/$name/deploy" -- v-run-web-domain-deploy "$owner" "$name" "$action" ${value:+"$value"}
+	job_check_started "$?" ''
 	if [ -n "$artifact" ]; then
 		mkdir -p "$DEPLOY_UPLOADS"
 		chmod 700 "$ARCPANEL/data/deploy" "$DEPLOY_UPLOADS"
-		install -m 600 -o root -g root "$artifact" "$DEPLOY_UPLOADS/$QT_ID.tar.gz"
+		install -m 600 -o root -g root "$artifact" "$DEPLOY_UPLOADS/$JOB_ID.tar.gz"
 	fi
-	deploy_lock "$owner" "$name"
-	running=$(deploy_get "$owner" "$name" RUNNING)
-	if [ -n "$running" ] && ! deploy_task_alive "$owner" "$running"; then
-		if [ "$(qt_get "$owner" "$running" STATUS)" = 'queued' ] || [ "$(qt_get "$owner" "$running" STATUS)" = 'running' ]; then
-			qt_lock
-			qt_set "$owner" "$running" STATUS=failed "ERROR=the deploy runner stopped" "END=$(date +'%F %T')" PID=
-			qt_unlock
-		fi
-		running=
+	if [ -n "$JOB_REPLACED" ]; then
+		rm -f "$DEPLOY_UPLOADS/$JOB_REPLACED.tar.gz"
 	fi
-	if [ -n "$running" ]; then
-		pending=$(deploy_get "$owner" "$name" PENDING)
-		if [ -n "$pending" ] && [ "$pending" != "$QT_ID" ]; then
-			qt_lock
-			if [ "$(qt_get "$owner" "$pending" STATUS)" = 'queued' ]; then
-				qt_set "$owner" "$pending" STATUS=failed "ERROR=replaced by a newer request" "END=$(date +'%F %T')"
-			fi
-			qt_unlock
-			rm -f "$DEPLOY_UPLOADS/$pending.tar.gz"
-		fi
-		deploy_set "$owner" "$name" "PENDING=$QT_ID"
-	else
-		deploy_set "$owner" "$name" "RUNNING=$QT_ID"
-		deploy_start "$owner" "$name" "$QT_ID"
-	fi
-	deploy_unlock
-	echo "$QT_ID"
+	job_dispatch
+	echo "$JOB_ID"
 }
 
-# Stop the running and pending deploys of USER DOMAIN (turning deploy off)
+# Stop the running and queued deploys of USER DOMAIN (turning deploy off)
 deploy_stop() {
 	local owner="$1" name="$2" task
-	for task in $(deploy_get "$owner" "$name" RUNNING) $(deploy_get "$owner" "$name" PENDING); do
-		if deploy_has_systemd; then
-			systemctl stop "$(deploy_unit "$owner" "$task").service" > /dev/null 2>&1
-		fi
-		user=$owner
-		qt_lock
-		case "$(qt_get "$owner" "$task" STATUS)" in
-			queued | running)
-				qt_set "$owner" "$task" STATUS=failed "ERROR=deploy was turned off" "END=$(date +'%F %T')" PID=
-				;;
-		esac
-		qt_unlock
+	for task in $(deploy_jobs "$owner" "$name" running) $(deploy_jobs "$owner" "$name" queued); do
+		job_cancel "$task" "deploy was turned off"
 		rm -f "$DEPLOY_UPLOADS/$task.tar.gz"
 	done
 }

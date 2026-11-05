@@ -1,8 +1,8 @@
 #!/bin/bash
 # info: run a Git Deploy task of a web domain
-# options: USER DOMAIN TASK
+# options: USER DOMAIN ACTION [VALUE]
 #
-# example: v-run-web-domain-deploy alice shop.example.com 17617400001234
+# example: v-run-web-domain-deploy alice shop.example.com pull main
 #
 # This function runs the pipeline of a deploy task (E20 §5): it gets the
 # files into a new release (an archive unpacked as the user, or a clone in
@@ -10,8 +10,10 @@
 # one rename, reloads PHP-FPM and the domain's app processes, checks the
 # health path (a failure switches back), and prunes old releases. A
 # rollback task switches to an existing release. A failed step leaves
-# current where it was. The runner unit started by v-schedule-web-domain-deploy
-# calls it through v-run-queue-task; it is not meant to be called directly.
+# current where it was. It is the command of the deploy.run and
+# deploy.rollback jobs (E15) that v-schedule-web-domain-deploy and
+# v-rollback-web-domain-deploy start, and refuses to run outside such a job;
+# ACTION is archive, pull (VALUE: the ref) or rollback (VALUE: the release).
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -20,7 +22,8 @@
 # Argument definition
 user=$1
 domain=$2
-task=$3
+action=$3
+value=${4-}
 
 # Includes
 # shellcheck source=/etc/arcpanel/arcpanel.conf
@@ -51,20 +54,15 @@ format_domain
 #                    Verifications                         #
 #----------------------------------------------------------#
 
-check_args '3' "$#" 'USER DOMAIN TASK'
+check_args '3' "$#" 'USER DOMAIN ACTION [VALUE]'
 is_format_valid 'user' 'domain'
 is_object_valid 'user' 'USER' "$user"
 is_object_valid 'web' 'DOMAIN' "$domain"
-if ! [[ "$task" =~ ^[0-9]{14}$ ]]; then
-	check_result "$E_INVALID" "invalid task :: $task"
+if ! job_is_current 'deploy\.(run|rollback)' || [ "${JOB[OBJECT]}" != "deploy:$domain" ] \
+	|| [ "${JOB[USER]}" != "$user" ]; then
+	check_result "$E_FORBIDEN" "the deploy was not started by v-schedule-web-domain-deploy"
 fi
-if [ "$(qt_get "$user" "$task" KIND)" != 'deploy' ]; then
-	check_result "$E_NOTEXIST" "task $task is not a deploy task of $user"
-fi
-read -r task_domain action value <<< "$(qt_get "$user" "$task" ARGS)"
-if [ "$task_domain" != "$domain" ]; then
-	check_result "$E_INVALID" "task $task is not a deploy of $domain"
-fi
+task=$JOB_ID
 if ! deploy_exists "$user" "$domain"; then
 	check_result "$E_NOTEXIST" "deploy is not on for $domain"
 fi
@@ -77,12 +75,9 @@ web=$(deploy_web "$user" "$domain")
 artifact="$DEPLOY_UPLOADS/$task.tar.gz"
 new_release=''
 
-# Hand the domain on to the pending request whatever happens
+# The archive goes whatever happens; the job queue starts the next request
 finish() {
 	rm -f "$artifact"
-	deploy_lock "$user" "$domain"
-	deploy_handover_unlocked "$user" "$domain"
-	deploy_unlock
 }
 trap finish EXIT
 
