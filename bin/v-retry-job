@@ -80,6 +80,9 @@ if [ "$rc" -ne 0 ]; then
 fi
 new=$JOB_ID
 job_set "$new" "RETRY_OF=$id"
+if [ -f "$(job_request_file "$id")" ]; then
+	job_request_store "$new" "$(job_request_file "$id")"
+fi
 job_dispatch
 job_emit_id "$new" "$format"
 

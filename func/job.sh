@@ -80,6 +80,22 @@ job_unit() {
 	echo "arcpanel-job-$1"
 }
 
+# The request of a job (spec §3.6): input its command reads, root 0600,
+# never in ARGS; removed when the job succeeds, kept a day after a failure
+# so that a retry can use it
+job_request_file() {
+	echo "$JOB_DIR/$1.request"
+}
+
+# Copy FILE into the request of job ID
+job_request_store() {
+	local file
+	file=$(job_request_file "$1")
+	(umask 077 && cp -- "$2" "$file") || return 1
+	chown root:root "$file"
+	chmod 600 "$file"
+}
+
 # Create data/jobs/ (root:arcpanelweb 0750)
 job_dir_init() {
 	if [ ! -d "$JOB_DIR" ]; then
@@ -105,7 +121,7 @@ job_file_mode() {
 #                       Job types                          #
 #----------------------------------------------------------#
 
-declare -A JOB_TYPE_CMDS=() JOB_TYPE_CLASS=() JOB_TYPE_KEY=() JOB_TYPE_RETRY=() JOB_TYPE_LIMIT=() JOB_TYPE_HOOK=()
+declare -gA JOB_TYPE_CMDS=() JOB_TYPE_CLASS=() JOB_TYPE_KEY=() JOB_TYPE_RETRY=() JOB_TYPE_LIMIT=() JOB_TYPE_HOOK=()
 
 # Register a job type (see the header)
 job_type_add() {
@@ -148,18 +164,18 @@ job_type_add sys.arcpanel-update v-run-sys-task immediate sys no 7200
 job_type_add sys.arcpanel-release v-run-sys-task immediate sys no 7200
 job_type_add sys.arcpanel-rollback v-run-sys-task immediate sys no 7200
 job_type_add docker.engine v-run-sys-docker-task immediate sys no 7200
-job_type_add docker.install v-run-docker-app-task immediate object yes 1800
-job_type_add docker.update v-run-docker-app-task immediate object yes 1800
-job_type_add docker.rollback v-run-docker-app-task immediate object no 1800
-job_type_add docker.snapshot v-run-docker-app-task immediate object no 1800
+job_type_add docker.install v-run-docker-app-task immediate object yes 2100
+job_type_add docker.update v-run-docker-app-task immediate object yes 2100
+job_type_add docker.rollback v-run-docker-app-task immediate object no 2100
+job_type_add docker.snapshot v-run-docker-app-task immediate object no 2100
 job_type_add node.install v-run-user-node-task immediate object no 1800
 job_type_add node.build v-run-user-node-task immediate object yes 1800
 job_type_add node.npm v-run-user-node-task immediate object yes 1800
-job_type_add app-process.composer-install v-run-app-process-task immediate object no 1800
-job_type_add app-process.migrate v-run-app-process-task immediate object no 1800
-job_type_add app-process.pip-install v-run-app-process-task immediate object no 1800
-job_type_add app-process.bundle-install v-run-app-process-task immediate object no 1800
-job_type_add app-process.custom v-run-app-process-task immediate object no 1800
+job_type_add app-process.composer-install v-run-app-process-task immediate object no 2100
+job_type_add app-process.migrate v-run-app-process-task immediate object no 2100
+job_type_add app-process.pip-install v-run-app-process-task immediate object no 2100
+job_type_add app-process.bundle-install v-run-app-process-task immediate object no 2100
+job_type_add app-process.custom v-run-app-process-task immediate object no 2100
 job_type_add quick-install v-run-user-quick-install immediate object yes 1800
 job_type_add malware.scan v-scan-user-web immediate object yes 7200
 job_type_add backup.job v-run-backup-job immediate object yes 86400
@@ -201,7 +217,9 @@ job_type_limit() {
 		fs.fetch)
 			value="${FETCH_TIMEOUT:-3600}"
 			[[ "$value" =~ ^[0-9]{1,6}$ ]] || value=3600
-			echo "$value"
+			# The transfer stops itself at FETCH_TIMEOUT; the margin lets
+			# the runner record why
+			echo $((value + 300))
 			return
 			;;
 		doctor.run)
@@ -269,7 +287,7 @@ job_exists() {
 }
 
 # Read the record of ID into the associative array JOB
-declare -A JOB=()
+declare -gA JOB=()
 job_read() {
 	local file line
 	JOB=()
@@ -406,6 +424,7 @@ job_create() {
 	JOB_ID=
 	JOB_REASON=
 	JOB_INUSE=
+	JOB_REPLACED=
 	if [ "${1-}" != '--' ] || [ $# -lt 2 ]; then
 		JOB_REASON="missing -- COMMAND"
 		return "$E_ARGS"
@@ -465,6 +484,7 @@ job_create() {
 		"QUEUED=$(date +'%F %T')" ATTEMPTS=0 "RESOURCE=$resource"
 	if [ -n "$existing" ]; then
 		job_set "$existing" STATUS=cancelled "ERROR=replaced by $id" "END=$(date +'%F %T')"
+		JOB_REPLACED=$existing
 	fi
 	job_unlock
 	JOB_ID=$id
@@ -516,6 +536,13 @@ job_launch() {
 		case "${JOB[TYPE]}" in
 			backup.job) props+=(-p Nice=10) ;;
 		esac
+		# The catalog overrides of root's environment (tests, mirrors) reach
+		# the command as they did when the sources ran it with setsid; sudo
+		# never passes them from the panel
+		local name
+		while IFS= read -r name; do
+			[[ "$name" =~ ^ARC_[A-Z0-9_]*(CATALOG|RELEASE|ROOT)$ ]] && props+=(-E "$name=${!name}")
+		done < <(compgen -e)
 		job_set "$id" STATUS=running "START=$(date +'%F %T')" "UNIT=$unit" PID= HEARTBEAT=
 		# The runner applies the limit itself; RuntimeMaxSec is the backstop
 		if ! systemd-run --quiet --collect --unit="$unit" --slice="$slice" \
@@ -659,6 +686,53 @@ job_reap_one() {
 	return 0
 }
 
+# Cancel queued or running job ID with the reason ERROR (spec §4.1): a queued
+# job at once, a running one by stopping its unit (KILL after 10 seconds) or,
+# without systemd, its runner's session. Returns E_INVALID with JOB_REASON
+# for a finished job. Takes the lock.
+job_cancel() {
+	local id="$1" error="$2" status unit pid
+	job_reap_one "$id" > /dev/null 2>&1 || true
+	job_lock
+	if ! job_read "$id"; then
+		job_unlock
+		JOB_REASON="job $id does not exist"
+		return "$E_NOTEXIST"
+	fi
+	status=${JOB[STATUS]}
+	if [ "$status" != 'queued' ] && [ "$status" != 'running' ]; then
+		job_unlock
+		JOB_REASON="job $id is $status and cannot be cancelled"
+		return "$E_INVALID"
+	fi
+	job_set "$id" STATUS=cancelled "ERROR=$error" "END=$(date +'%F %T')"
+	unit=${JOB[UNIT]}
+	pid=${JOB[PID]}
+	job_unlock
+	if [ "$status" = 'running' ]; then
+		if [ -n "$unit" ]; then
+			systemctl stop "$unit.service" > /dev/null 2>&1
+		elif [[ "$pid" =~ ^[0-9]+$ ]]; then
+			# The runner leads its own session (setsid); its command runs in
+			# a process group of that session
+			pkill -TERM -s "$pid" 2> /dev/null
+			for _ in $(seq 1 20); do
+				kill -0 "$pid" 2> /dev/null || break
+				sleep 0.5
+			done
+			pkill -KILL -s "$pid" 2> /dev/null
+		fi
+	fi
+	# A runner that was killed before it recorded the end leaves the hooks
+	# to the canceller
+	job_read "$id"
+	if [ "$status" = 'queued' ] || [ -z "${JOB[EXIT]}" ]; then
+		job_finish "$id"
+	fi
+	job_dispatch
+	return 0
+}
+
 # Reap every running job
 job_reap() {
 	local id
@@ -734,7 +808,7 @@ job_alert() {
 
 job_remove_files() {
 	rm -f "$(job_conf "$1")" "$(job_log "$1")" "$(job_argv_file "$1")" "$(job_mask_file "$1")" \
-		"$JOB_DIR/$1.noretry"
+		"$JOB_DIR/$1.noretry" "$(job_request_file "$1")"
 }
 
 # Delete finished jobs older than JOB_KEEP_DAYS and, per user, the oldest
@@ -760,10 +834,19 @@ job_cleanup() {
 		fi
 	done < <(find "$JOB_DIR" -maxdepth 1 -name '[0-9]*.conf' -printf '%f\n' | sort -r | sed "s|^|$JOB_DIR/|")
 	# Logs and files without a record
-	find "$JOB_DIR" -maxdepth 1 -type f \( -name '[0-9]*.log' -o -name '[0-9]*.argv' -o -name '[0-9]*.mask' -o -name '[0-9]*.noretry' \) -printf '%f\n' \
+	find "$JOB_DIR" -maxdepth 1 -type f \( -name '[0-9]*.log' -o -name '[0-9]*.argv' -o -name '[0-9]*.mask' -o -name '[0-9]*.noretry' -o -name '[0-9]*.request' \) -printf '%f\n' \
 		| while IFS= read -r file; do
 			id=${file%%.*}
 			[ -f "$JOB_DIR/$id.conf" ] || rm -f "${JOB_DIR:?}/$file"
+		done
+	# A request of a finished job is kept a day for a retry (spec §3.6)
+	find "$JOB_DIR" -maxdepth 1 -type f -name '[0-9]*.request' -mmin +1440 -printf '%f\n' \
+		| while IFS= read -r file; do
+			id=${file%%.*}
+			case "$(job_get "$id" STATUS)" in
+				queued | running) ;;
+				*) rm -f "${JOB_DIR:?}/$file" ;;
+			esac
 		done
 	job_unlock
 }
@@ -869,12 +952,14 @@ job_mask_register() {
 # A command run by a backup or letsencrypt job says that a failure is final
 # (the queue does not run it again), as removing its line from the queue
 # pipe did before E15
-job_no_retry() {
-	if job_id_valid "${JOB_ID-}" && [ -d "$JOB_DIR" ]; then
-		: > "$JOB_DIR/$JOB_ID.noretry"
-	fi
-	return 0
-}
+if ! declare -F job_no_retry > /dev/null; then
+	job_no_retry() {
+		if job_id_valid "${JOB_ID-}" && [ -d "$JOB_DIR" ]; then
+			: > "$JOB_DIR/$JOB_ID.noretry"
+		fi
+		return 0
+	}
+fi
 
 # Runs of a retried queued job before it fails: QUEUE_MAX_ATTEMPTS of
 # arcpanel.conf, 3 when unset or not a number, at least 1
@@ -946,13 +1031,17 @@ job_log_tail() {
 # TYPES and, when given, whose OBJECT is OBJECT (the v-list-*-task commands
 # of the single-slot sources, spec §4.2)
 job_newest() {
-	local types="$1" object="${2-}"
+	local types="$1" object="${2-}" juser="${3-}"
 	[ -d "$JOB_DIR" ] || return 1
 	local -a files=()
 	mapfile -t files < <(grep -rlE --include='*.conf' "(^| )TYPE='($types)'" "$JOB_DIR" 2> /dev/null)
 	[ "${#files[@]}" -gt 0 ] || return 1
 	if [ -n "$object" ]; then
 		mapfile -t files < <(grep -lF " OBJECT='$object' " "${files[@]}" 2> /dev/null)
+		[ "${#files[@]}" -gt 0 ] || return 1
+	fi
+	if [ -n "$juser" ]; then
+		mapfile -t files < <(grep -lF " USER='$juser' " "${files[@]}" 2> /dev/null)
 		[ "${#files[@]}" -gt 0 ] || return 1
 	fi
 	printf '%s\n' "${files[@]}" | sed -E 's|.*/([0-9]{14})\.conf$|\1|' | grep -E '^[0-9]{14}$' | sort | tail -n1
@@ -966,6 +1055,53 @@ job_legacy_status() {
 		failed | cancelled) echo failed ;;
 		*) echo '' ;;
 	esac
+}
+
+# The arguments of the command of job ID from the Nth (1 = the first after
+# the command), space-separated, as the old task records kept them
+job_legacy_args() {
+	local -a argv=()
+	[ -f "$(job_argv_file "$1")" ] || return 0
+	mapfile -d '' argv < "$(job_argv_file "$1")"
+	printf '%s' "${argv[*]:$2}"
+}
+
+# Word N of the command of job ID (0 = the command)
+job_argv_word() {
+	local -a argv=()
+	[ -f "$(job_argv_file "$1")" ] || return 0
+	mapfile -d '' argv < "$(job_argv_file "$1")"
+	printf '%s' "${argv[$2]-}"
+}
+
+# The common part of the old task records for job ID (empty without a job):
+# ID, STATUS (running, done or failed), EXIT, START, END and LOG, the log
+# from byte OFFSET with the next OFFSET (a string, as before) when MODE is
+# offset, or its last N lines when MODE is lines
+job_legacy_json() {
+	local id="$1" mode="$2" value="$3" log='' next='0' tmp
+	if [ -z "$id" ] || ! job_read "$id"; then
+		JOB=()
+		if [ "$mode" = offset ]; then
+			jq -nc '{ID: "", STATUS: "", EXIT: "", START: "", END: "", LOG: "", OFFSET: "0"}'
+		else
+			jq -nc '{ID: "", STATUS: "", EXIT: "", START: "", END: "", LOG: ""}'
+		fi
+		return 0
+	fi
+	tmp=$(mktemp)
+	if [ "$mode" = offset ]; then
+		job_log_chunk "$id" "$value" "$tmp"
+		next=$JOB_LOG_NEXT
+	else
+		job_log_tail "$id" "$value" > "$tmp"
+	fi
+	job_read "$id"
+	jq -nc --arg id "$id" --arg status "$(job_legacy_status "${JOB[STATUS]}")" --arg exit "${JOB[EXIT]}" \
+		--arg start "${JOB[START]}" --arg end "${JOB[END]}" --rawfile log "$tmp" --arg offset "$next" --arg mode "$mode" '
+		{ID: $id, STATUS: $status, EXIT: $exit, START: $start, END: $end, LOG: ($log | if $mode == "lines" then sub("\n$"; "") else . end)}
+		+ (if $mode == "offset" then {OFFSET: $offset} else {} end)'
+	rm -f "$tmp"
 }
 
 # ACTOR of a job started by a v-start-* command that has no ACTOR argument:

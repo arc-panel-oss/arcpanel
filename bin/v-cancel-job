@@ -50,43 +50,12 @@ check_arcpanel_demo_mode
 #                       Action                             #
 #----------------------------------------------------------#
 
-job_reap_one "$id" > /dev/null 2>&1 || true
-
-job_lock
-job_read "$id"
-status=${JOB[STATUS]}
-if [ "$status" != 'queued' ] && [ "$status" != 'running' ]; then
-	job_unlock
-	check_result "$E_INVALID" "job $id is $status and cannot be cancelled"
+type=$(job_get "$id" TYPE)
+job_cancel "$id" "cancelled by $actor"
+rc=$?
+if [ "$rc" -ne 0 ]; then
+	check_result "$rc" "$JOB_REASON"
 fi
-job_set "$id" STATUS=cancelled "ERROR=cancelled by $actor" "END=$(date +'%F %T')"
-unit=${JOB[UNIT]}
-pid=${JOB[PID]}
-type=${JOB[TYPE]}
-job_unlock
-
-if [ "$status" = 'running' ]; then
-	if [ -n "$unit" ]; then
-		systemctl stop "$unit.service" > /dev/null 2>&1
-	elif [[ "$pid" =~ ^[0-9]+$ ]]; then
-		# The runner leads its own session (setsid); its command runs in a
-		# process group of that session
-		pkill -TERM -s "$pid" 2> /dev/null
-		for _ in $(seq 1 20); do
-			kill -0 "$pid" 2> /dev/null || break
-			sleep 0.5
-		done
-		pkill -KILL -s "$pid" 2> /dev/null
-	fi
-fi
-
-# A runner that was killed before it recorded the end leaves the hooks to
-# this command
-job_read "$id"
-if [ "$status" = 'queued' ] || [ -z "${JOB[EXIT]}" ]; then
-	job_finish "$id"
-fi
-job_dispatch
 
 #----------------------------------------------------------#
 #                         ArcPanel                         #

@@ -360,6 +360,36 @@ teardown() {
     assert_output 2
 }
 
+@test "Jobs: QUEUE_MAX_ATTEMPTS sets the runs of a queued job (garbage 3, zero 1)" {
+    run lib 'QUEUE_MAX_ATTEMPTS=many job_max_attempts; QUEUE_MAX_ATTEMPTS=0 job_max_attempts; QUEUE_MAX_ATTEMPTS=5 job_max_attempts; QUEUE_MAX_ATTEMPTS= job_max_attempts'
+    assert_output $'3\n1\n5\n3'
+    sed -i '/^QUEUE_MAX_ATTEMPTS=/d' "$ARCPANEL/conf/arcpanel.conf"
+    echo "QUEUE_MAX_ATTEMPTS='1'" >> "$ARCPANEL/conf/arcpanel.conf"
+    run mkjob bats.backup bats-max1 fail 6
+    id=$output
+    run wait_job "$id"
+    sed -i '/^QUEUE_MAX_ATTEMPTS=/d' "$ARCPANEL/conf/arcpanel.conf"
+    assert_output failed
+    run field "$id" ERROR
+    assert_output "gave up after 1 attempts: the bats command failed"
+}
+
+@test "Jobs: the error line is the last Error: line, else the last line, at most 300 characters" {
+    local id=19990101120005 long
+    mkdir -p "$JOB_DIR"
+    printf '%s\n' 'starting' 'Error: first' 'more output' '  Error: second one' 'tail line' '' > "$JOB_DIR/$id.log"
+    run lib "job_error_line $id"
+    assert_output 'second one'
+    printf '%s\n' 'starting' 'last words' '' '' > "$JOB_DIR/$id.log"
+    run lib "job_error_line $id"
+    assert_output 'last words'
+    long=$(printf 'x%.0s' $(seq 1 400))
+    printf 'Error: %s\n' "$long" > "$JOB_DIR/$id.log"
+    run lib "job_error_line $id"
+    [ "${#output}" -eq 300 ]
+    rm -f "$JOB_DIR/$id.log"
+}
+
 @test "Jobs: a command can make its failure final" {
     run mkjob bats.backup bats-noretry noretry
     id=$output

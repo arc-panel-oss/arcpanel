@@ -155,19 +155,23 @@ elif [ "$elapsed" -ge "$limit" ] && { [ "$rc" -eq 124 ] || [ "$rc" -eq 137 ] || 
 		"ERROR=time limit of $(job_limit_text "$limit") reached"
 elif [ -n "$stopped" ]; then
 	job_set "$id" STATUS=failed "EXIT=$rc" "END=$(date +'%F %T')" 'ERROR=runner stopped'
-elif { [ "$class" = 'backup' ] || [ "$class" = 'letsencrypt' ]; } && [ ! -f "$JOB_DIR/$id.noretry" ] \
-	&& [ "$attempts" -lt "$(job_max_attempts)" ]; then
-	# The queue runs it again on its next pass, as the queue pipes did
-	job_set "$id" STATUS=queued EXIT= START= END= PID= UNIT= HEARTBEAT= \
-		"ERROR=attempt $attempts failed with exit code $rc, queued again"
-	requeued=yes
-elif [ "$attempts" -gt 1 ]; then
-	job_set "$id" STATUS=failed "EXIT=$rc" "END=$(date +'%F %T')" \
-		"ERROR=gave up after $attempts attempts: $(job_error_line "$id")"
+elif { [ "$class" = 'backup' ] || [ "$class" = 'letsencrypt' ]; } && [ ! -f "$JOB_DIR/$id.noretry" ]; then
+	if [ "$attempts" -lt "$(job_max_attempts)" ]; then
+		# The queue runs it again on its next pass, as the queue pipes did
+		job_set "$id" STATUS=queued EXIT= START= END= PID= UNIT= HEARTBEAT= \
+			"ERROR=attempt $attempts failed with exit code $rc, queued again"
+		requeued=yes
+	else
+		job_set "$id" STATUS=failed "EXIT=$rc" "END=$(date +'%F %T')" \
+			"ERROR=gave up after $attempts attempts: $(job_error_line "$id")"
+	fi
 else
 	job_set "$id" STATUS=failed "EXIT=$rc" "END=$(date +'%F %T')" "ERROR=$(job_error_line "$id")"
 fi
 rm -f "$mask" "$JOB_DIR/$id.noretry"
+if [ "$(job_get "$id" STATUS)" = 'succeeded' ]; then
+	rm -f "$(job_request_file "$id")"
+fi
 job_unlock
 
 if [ -z "$requeued" ]; then
