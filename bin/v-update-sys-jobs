@@ -39,8 +39,10 @@ fi
 job_reap
 
 # Records of the old task stores (spec §9)
-if [ -f "$JOB_DIR/.import-pending" ] && declare -F job_import > /dev/null; then
-	job_import
+if [ -f "$JOB_DIR/.import-pending" ] && [ -f "$ARCPANEL/func/job-import.sh" ]; then
+	# shellcheck source=/usr/local/arcpanel/func/job-import.sh
+	source "$ARCPANEL/func/job-import.sh"
+	job_import > /dev/null
 fi
 
 job_dispatch

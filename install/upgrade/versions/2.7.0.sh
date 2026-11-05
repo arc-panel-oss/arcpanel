@@ -27,3 +27,29 @@ for upd_step_pair in DEPLOY_PORT=8088 DEPLOY_MAX_ARTIFACT=512M DEPLOY_BUILD_TIME
 	fi
 done
 unset upd_step_pair
+
+# E15 Job Center (docs/features/specs/2026-11-05-001-e15-job-center-design.md
+# §9): the finished task records of 2.6 become jobs with the same IDs, the
+# lines of the backup and Let's Encrypt pipes become queued jobs, and records
+# that still run are imported by v-update-sys-jobs once they finish. The
+# panel's database (data/arcpanel/) and its migrations come with
+# v-add-sys-arcpanel, which every upgrade runs.
+# shellcheck source=/usr/local/arcpanel/func/job.sh
+source "$ARCPANEL/func/job.sh"
+# shellcheck source=/usr/local/arcpanel/func/job-import.sh
+source "$ARCPANEL/func/job-import.sh"
+job_import_start
+
+# The job queue runs every minute instead of the two queue pipes
+upd_step_cron=/var/spool/cron/crontabs/arcpanelweb
+if [ -f "$upd_step_cron" ]; then
+	sed -i -e '/bin\/v-update-sys-queue backup/d' -e '/bin\/v-update-sys-queue letsencrypt/d' "$upd_step_cron"
+	if ! grep -q 'bin/v-update-sys-jobs' "$upd_step_cron"; then
+		# sed, not >>: the crontab folder is sticky and group-writable, so
+		# fs.protected_regular refuses even root an O_CREAT open of the file
+		sed -i -e '$a* * * * * sudo /usr/local/arcpanel/bin/v-update-sys-jobs > /dev/null 2>&1' "$upd_step_cron"
+		echo "[ * ] E15: the job queue runs every minute from cron"
+	fi
+fi
+unset upd_step_cron
+rm -f "$ARCPANEL/bin/v-run-queue-task"

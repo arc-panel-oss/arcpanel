@@ -29,11 +29,12 @@ check_arcpanel_demo_mode
 #                       Action                             #
 #----------------------------------------------------------#
 
-# Add cron job
-cmd="bin/v-update-sys-queue letsencrypt"
+# Add cron job: certificates are letsencrypt.domain jobs, started by the job
+# queue every minute (E15 spec §9)
+cmd="bin/v-update-sys-jobs"
 check_cron=$(grep "$cmd" "/var/spool/cron/crontabs/arcpanelweb" 2> /dev/null)
 if [ -z "$check_cron" ] && [ -n "$CRON_SYSTEM" ]; then
-	sed -i -e "\$a*/5 * * * * sudo /usr/local/arcpanel/bin/v-update-sys-queue letsencrypt" "/var/spool/cron/crontabs/arcpanelweb"
+	sed -i -e "\$a* * * * * sudo /usr/local/arcpanel/bin/v-update-sys-jobs > /dev/null 2>&1" "/var/spool/cron/crontabs/arcpanelweb"
 fi
 
 #----------------------------------------------------------#
