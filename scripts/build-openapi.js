@@ -92,6 +92,11 @@ const tags = [
 		description: 'Quick Install web applications',
 	},
 	{
+		name: 'Jobs',
+		words: ['job', 'jobs'],
+		description: 'Long operations run as jobs (E15)',
+	},
+	{
 		name: 'System',
 		words: [
 			'sys',

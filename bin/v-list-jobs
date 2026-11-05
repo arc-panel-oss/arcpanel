@@ -1,0 +1,83 @@
+#!/bin/bash
+# info: list jobs (E15)
+# options: [SINCE] [FORMAT]
+#
+# example: v-list-jobs all json
+# example: v-list-jobs '2026-11-05 10:00:00' json
+#
+# This function prints every job whose UPDATED is at or after SINCE
+# (YYYY-MM-DD HH:MM:SS or YYYY-MM-DD; default all), keyed by ID, with CLASS
+# and RETRYABLE of its type. The panel's job index (arcpanel:jobs-sync) is
+# built from it. ARGS is masked; logs are read with v-list-job.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+since=${1:-all}
+format=${2-shell}
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/job.sh
+source $ARCPANEL/func/job.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+if [ "$since" = 'all' ]; then
+	since=''
+elif [[ "$since" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}([T\ ][0-9]{2}:[0-9]{2}:[0-9]{2})?$ ]]; then
+	since=${since/T/ }
+else
+	check_result "$E_INVALID" "invalid time :: $since (all, YYYY-MM-DD or YYYY-MM-DD HH:MM:SS)"
+fi
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+# Class and retryable flag of every type
+types='{}'
+for type in "${!JOB_TYPE_CLASS[@]}"; do
+	retryable=no
+	job_type_retryable "$type" && retryable=yes
+	types=$(jq -c --arg t "$type" --arg c "${JOB_TYPE_CLASS[$type]}" --arg r "$retryable" \
+		'. + {($t): {CLASS: $c, RETRYABLE: $r}}' <<< "$types")
+done
+
+json='{}'
+if [ -d "$JOB_DIR" ]; then
+	json=$(find "$JOB_DIR" -maxdepth 1 -name '[0-9]*.conf' -print0 | sort -z | xargs -0 -r head -q -n1 \
+		| job_mask | jq -R -s -c --arg since "$since" --argjson types "$types" "
+			split(\"\n\") | map(select(length > 0) | $JOB_JQ_RECORD
+				| select(.ID != null and (.ID | test(\"^[0-9]{14}$\")))
+				| select(\$since == \"\" or (.UPDATED // \"\") >= \$since)
+				| . + (\$types[.TYPE] // {CLASS: \"\", RETRYABLE: \"no\"}))
+			| map({key: .ID, value: .}) | from_entries")
+fi
+
+case "$format" in
+	json) printf '%s\n' "$json" | jq . ;;
+	plain) printf '%s\n' "$json" | jq -r '.[] | [.ID, .TYPE, .USER, .OBJECT, .STATUS, .ACTOR, .QUEUED, .START, .END, .EXIT] | @tsv' ;;
+	*)
+		{
+			echo "ID TYPE USER OBJECT STATUS QUEUED"
+			echo "-- ---- ---- ------ ------ ------"
+			printf '%s\n' "$json" | jq -r '.[] | [.ID, .TYPE, .USER, .OBJECT, .STATUS, (.QUEUED | sub(" "; "_"))] | join(" ")'
+		} | column -t
+		;;
+esac
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+exit

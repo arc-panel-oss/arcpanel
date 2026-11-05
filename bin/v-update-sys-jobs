@@ -1,0 +1,60 @@
+#!/bin/bash
+# info: run the job queue (E15)
+# options: NONE
+#
+# example: v-update-sys-jobs
+#
+# This function runs from cron every minute: it reaps running jobs whose
+# runner is gone or silent, imports the task records of the sources that
+# still wait for it (upgrade to 2.7.0), starts the queued jobs that have a
+# free slot and, once an hour, deletes finished jobs older than 30 days and
+# beyond 500 per user. A run that finds another one running exits.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/tenancy.sh
+source $ARCPANEL/func/tenancy.sh
+# shellcheck source=/usr/local/arcpanel/func/job.sh
+source $ARCPANEL/func/job.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+job_dir_init
+exec {run_lock}> "$JOB_DIR/.update.lock"
+if ! flock -n "$run_lock"; then
+	exit 0
+fi
+
+job_reap
+
+# Records of the old task stores (spec §9)
+if [ -f "$JOB_DIR/.import-pending" ] && declare -F job_import > /dev/null; then
+	job_import
+fi
+
+job_dispatch
+
+stamp="$JOB_DIR/.cleanup"
+if [ ! -f "$stamp" ] || [ -n "$(find "$stamp" -mmin +59 2> /dev/null)" ]; then
+	touch "$stamp"
+	job_cleanup
+fi
+
+flock -u "$run_lock"
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+exit

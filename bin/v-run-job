@@ -1,0 +1,185 @@
+#!/bin/bash
+# info: run a job (E15)
+# options: ID
+#
+# example: v-run-job 17286400001234
+#
+# This function is the runner of a job, started by job_dispatch in a
+# transient systemd unit (arcpanel-job-ID) or with setsid nohup. It runs the
+# job's command within the time limit of its type, writes its output,
+# masked, to data/jobs/ID.log, refreshes HEARTBEAT every 30 seconds and
+# records STATUS, EXIT, ERROR and END, then calls the finish hooks. A failed
+# job of the backup and letsencrypt queues is queued again until it has run
+# QUEUE_MAX_ATTEMPTS times, unless its command marked the failure final. It
+# refuses a job that job_dispatch did not start.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+id=$1
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/job.sh
+source $ARCPANEL/func/job.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+stopped=''
+cpid=''
+
+# systemctl stop (cancel, time limit backstop, shutdown) or a TERM to the
+# session: stop the command, then record the result below
+on_stop() {
+	stopped=yes
+	if [ -n "$cpid" ]; then
+		kill -TERM -- "-$cpid" 2> /dev/null || kill -TERM "$cpid" 2> /dev/null
+		(
+			sleep 10
+			kill -KILL -- "-$cpid" 2> /dev/null
+		) &
+	fi
+}
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '1' "$#" 'ID'
+if ! job_id_valid "$id"; then
+	check_result "$E_INVALID" "invalid job ID :: $id"
+fi
+
+job_lock
+if ! job_read "$id"; then
+	job_unlock
+	check_result "$E_NOTEXIST" "job $id does not exist"
+fi
+if [ "${JOB[STATUS]}" != 'running' ] || { [ -n "${JOB[PID]}" ] && [ "${JOB[PID]}" != "$$" ]; } \
+	|| { [ -z "${JOB[UNIT]}" ] && [ "${JOB[PID]}" != "$$" ]; }; then
+	job_unlock
+	check_result "$E_FORBIDEN" "job $id was not started by the job queue"
+fi
+argv=()
+if [ -f "$(job_argv_file "$id")" ]; then
+	mapfile -d '' argv < "$(job_argv_file "$id")"
+fi
+base=$(basename -- "${argv[0]-}")
+if [ "${#argv[@]}" -eq 0 ] || [ "${argv[0]}" != "$BIN/$base" ] || ! job_command_allowed "${JOB[TYPE]}" "$base"; then
+	job_set "$id" STATUS=failed EXIT="$E_FORBIDEN" "END=$(date +'%F %T')" \
+		"ERROR=command is not allowed for jobs of type ${JOB[TYPE]}"
+	job_unlock
+	check_result "$E_FORBIDEN" "command is not allowed"
+fi
+
+type=${JOB[TYPE]}
+class=$(job_type_class "$type")
+limit=$(job_type_limit "$type" "${JOB[OBJECT]}")
+attempts=${JOB[ATTEMPTS]}
+[[ "$attempts" =~ ^[0-9]+$ ]] || attempts=0
+attempts=$((attempts + 1))
+job_set "$id" "PID=$$" "HEARTBEAT=$(date +'%F %T')" "ATTEMPTS=$attempts" EXIT= ERROR= END=
+rm -f "$JOB_DIR/$id.noretry"
+job_unlock
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+log=$(job_log "$id")
+touch "$log"
+job_file_mode "$log"
+mask=$(job_mask_file "$id")
+: > "$mask"
+chmod 600 "$mask"
+if [ "$attempts" -gt 1 ]; then
+	printf '\n--- attempt %s, %s ---\n' "$attempts" "$(date +'%F %T')" >> "$log"
+fi
+
+trap on_stop TERM INT HUP
+
+# Heartbeat
+(
+	trap - TERM INT HUP
+	while sleep "$JOB_HEARTBEAT_EVERY"; do
+		job_set "$id" "HEARTBEAT=$(date +'%F %T')"
+	done
+) &
+hb=$!
+
+fifo=$(mktemp -u "$JOB_DIR/.fifo-$id-XXXXXX")
+mkfifo -m 600 "$fifo"
+job_filter "$log" "$mask" < "$fifo" &
+fpid=$!
+
+started=$(date +%s)
+# The command learns its job (backup runs record it, secret_resolve_into
+# registers the values it resolves)
+JOB_ID=$id JOB_MASK_FILE=$mask timeout -k 10 "$limit" "${argv[@]}" < /dev/null > "$fifo" 2>&1 &
+cpid=$!
+rc=0
+while :; do
+	wait "$cpid"
+	rc=$?
+	# wait returns early (above 128) when a trap ran; the command still runs
+	if kill -0 "$cpid" 2> /dev/null; then
+		continue
+	fi
+	break
+done
+cpid=''
+wait "$fpid" 2> /dev/null
+rm -f "$fifo"
+kill "$hb" 2> /dev/null
+wait "$hb" 2> /dev/null
+elapsed=$(($(date +%s) - started))
+
+#----------------------------------------------------------#
+#                         Result                           #
+#----------------------------------------------------------#
+
+requeued=''
+job_lock
+job_read "$id"
+if [ "${JOB[STATUS]}" = 'cancelled' ]; then
+	job_set "$id" "EXIT=$rc" "END=${JOB[END]:-$(date +'%F %T')}"
+elif [ "$rc" -eq 0 ] && [ -z "$stopped" ]; then
+	job_set "$id" STATUS=succeeded EXIT=0 ERROR= "END=$(date +'%F %T')"
+elif [ "$elapsed" -ge "$limit" ] && { [ "$rc" -eq 124 ] || [ "$rc" -eq 137 ] || [ -n "$stopped" ]; }; then
+	job_set "$id" STATUS=failed "EXIT=$rc" "END=$(date +'%F %T')" \
+		"ERROR=time limit of $(job_limit_text "$limit") reached"
+elif [ -n "$stopped" ]; then
+	job_set "$id" STATUS=failed "EXIT=$rc" "END=$(date +'%F %T')" 'ERROR=runner stopped'
+elif { [ "$class" = 'backup' ] || [ "$class" = 'letsencrypt' ]; } && [ ! -f "$JOB_DIR/$id.noretry" ] \
+	&& [ "$attempts" -lt "$(job_max_attempts)" ]; then
+	# The queue runs it again on its next pass, as the queue pipes did
+	job_set "$id" STATUS=queued EXIT= START= END= PID= UNIT= HEARTBEAT= \
+		"ERROR=attempt $attempts failed with exit code $rc, queued again"
+	requeued=yes
+elif [ "$attempts" -gt 1 ]; then
+	job_set "$id" STATUS=failed "EXIT=$rc" "END=$(date +'%F %T')" \
+		"ERROR=gave up after $attempts attempts: $(job_error_line "$id")"
+else
+	job_set "$id" STATUS=failed "EXIT=$rc" "END=$(date +'%F %T')" "ERROR=$(job_error_line "$id")"
+fi
+rm -f "$mask" "$JOB_DIR/$id.noretry"
+job_unlock
+
+if [ -z "$requeued" ]; then
+	job_finish "$id"
+fi
+# A slot of the queue is free
+JOB_SKIP_DISPATCH=$id job_dispatch
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+log_event "$rc" "$ARGUMENTS"
+
+exit "$rc"

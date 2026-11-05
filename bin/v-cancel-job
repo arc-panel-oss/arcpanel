@@ -1,0 +1,98 @@
+#!/bin/bash
+# info: cancel a job (E15)
+# options: ID [ACTOR]
+#
+# example: v-cancel-job 17286400001234 alice
+#
+# This function cancels a queued or running job. A queued job is cancelled
+# at once. A running job is stopped: its systemd unit with systemctl stop
+# (KILL after 10 seconds), or without systemd a TERM to the runner's session
+# and a KILL after 10 seconds. STATUS becomes cancelled and ERROR names
+# ACTOR (default cli). A finished job is refused.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+id=$1
+actor=${2:-cli}
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/job.sh
+source $ARCPANEL/func/job.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '1' "$#" 'ID [ACTOR]'
+if ! job_id_valid "$id"; then
+	check_result "$E_INVALID" "invalid job ID :: $id"
+fi
+if ! job_actor_valid "$actor"; then
+	check_result "$E_INVALID" "invalid actor :: $actor"
+fi
+if ! job_exists "$id"; then
+	check_result "$E_NOTEXIST" "job $id does not exist"
+fi
+
+# Perform verification if read-only mode is enabled
+check_arcpanel_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+job_reap_one "$id" > /dev/null 2>&1 || true
+
+job_lock
+job_read "$id"
+status=${JOB[STATUS]}
+if [ "$status" != 'queued' ] && [ "$status" != 'running' ]; then
+	job_unlock
+	check_result "$E_INVALID" "job $id is $status and cannot be cancelled"
+fi
+job_set "$id" STATUS=cancelled "ERROR=cancelled by $actor" "END=$(date +'%F %T')"
+unit=${JOB[UNIT]}
+pid=${JOB[PID]}
+type=${JOB[TYPE]}
+job_unlock
+
+if [ "$status" = 'running' ]; then
+	if [ -n "$unit" ]; then
+		systemctl stop "$unit.service" > /dev/null 2>&1
+	elif [[ "$pid" =~ ^[0-9]+$ ]]; then
+		# The runner leads its own session (setsid); its command runs in a
+		# process group of that session
+		pkill -TERM -s "$pid" 2> /dev/null
+		for _ in $(seq 1 20); do
+			kill -0 "$pid" 2> /dev/null || break
+			sleep 0.5
+		done
+		pkill -KILL -s "$pid" 2> /dev/null
+	fi
+fi
+
+# A runner that was killed before it recorded the end leaves the hooks to
+# this command
+job_read "$id"
+if [ "$status" = 'queued' ] || [ -z "${JOB[EXIT]}" ]; then
+	job_finish "$id"
+fi
+job_dispatch
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+$BIN/v-log-action "system" "Info" "System" "Job cancelled (Job: $id, Type: $type, Actor: $actor)."
+log_event "$OK" "$ARGUMENTS"
+
+exit

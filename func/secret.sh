@@ -363,6 +363,10 @@ secret_resolve_into() {
 				return "$E_FORBIDEN"
 			fi
 			SECRET_CACHE[$__key]=${__value%x}
+			# A job masks the value in its log (E15 §3.6, func/job.sh)
+			if [ -n "${JOB_MASK_FILE-}" ] && [ -f "$JOB_MASK_FILE" ] && [ ! -L "$JOB_MASK_FILE" ]; then
+				printf '%s\n' "${SECRET_CACHE[$__key]}" >> "$JOB_MASK_FILE" 2> /dev/null || true
+			fi
 		fi
 		__value=${SECRET_CACHE[$__key]}
 		if [[ "$__value" == *$'\n'* ]] || [[ "$__value" == *$'\r'* ]]; then

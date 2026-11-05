@@ -121,6 +121,8 @@ tags:
     description: Docker apps from the catalog, run as the user (E4)
   - name: Quick Install
     description: Quick Install web applications
+  - name: Jobs
+    description: Long operations run as jobs (E15)
   - name: System
     description: Server configuration, services, packages, updates, logs and searches
   - name: Other
@@ -6984,6 +6986,54 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/v-backup-users-restic"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-cancel-job":
+    post:
+      operationId: v-cancel-job
+      tags:
+        - Jobs
+      summary: Cancel a job (E15)
+      description: |-
+        This function cancels a queued or running job. A queued job is cancelled
+        at once. A running job is stopped: its systemd unit with systemctl stop
+        (KILL after 10 seconds), or without systemd a TERM to the runner's session
+        and a KILL after 10 seconds. STATUS becomes cancelled and ERROR names
+        ACTOR (default cli). A finished job is refused.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `ID` | yes |
+        | `arg2` | `ACTOR` | no |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-cancel-job"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-cancel-job"
       responses:
         "200":
           description: "The output of the command; `OK` for an empty output with legacy authentication."
@@ -23933,6 +23983,109 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-list-job":
+    post:
+      operationId: v-list-job
+      tags:
+        - Jobs
+      summary: Show a job and its log (E15)
+      description: |-
+        This function prints the record of job ID (spec §3.2 of
+        docs/features/specs/2026-11-05-001-e15-job-center-design.md) with CLASS
+        and RETRYABLE of its type, and its log from byte OFFSET (default 0), at
+        most 256 KB per call: LOG holds the chunk, OFFSET the offset of the next
+        call and SIZE the size of the log. A running job whose runner is gone is
+        reaped first. Output and arguments are masked.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `ID` | yes |
+        | `arg2` | `OFFSET` | no |
+        | `arg3` | `FORMAT` | no |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-list-job"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-list-job"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-list-jobs":
+    post:
+      operationId: v-list-jobs
+      tags:
+        - Jobs
+      summary: List jobs (E15)
+      description: |-
+        This function prints every job whose UPDATED is at or after SINCE
+        (YYYY-MM-DD HH:MM:SS or YYYY-MM-DD; default all), keyed by ID, with CLASS
+        and RETRYABLE of its type. The panel's job index (arcpanel:jobs-sync) is
+        built from it. ARGS is masked; logs are read with v-list-job.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `SINCE` | no |
+        | `arg2` | `FORMAT` | no |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-list-jobs"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-list-jobs"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-list-letsencrypt-user":
     post:
       operationId: v-list-letsencrypt-user
@@ -34546,6 +34699,57 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-retry-job":
+    post:
+      operationId: v-retry-job
+      tags:
+        - Jobs
+      summary: Retry a job (E15)
+      description: |-
+        This function starts a new job with the TYPE, USER, OBJECT and command of
+        a failed or cancelled job whose type is retryable, with RETRY_OF=ID and
+        ACTOR (default cli), and prints the new job ID. A job whose concurrency
+        key is held by a queued or running job is refused with E_INUSE.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `ID` | yes |
+        | `arg2` | `ACTOR` | no |
+        | `arg3` | `FORMAT` | no |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-retry-job"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-retry-job"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-revoke-api-key":
     post:
       operationId: v-revoke-api-key
@@ -35043,6 +35247,56 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/v-run-fs-fetch"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-run-job":
+    post:
+      operationId: v-run-job
+      tags:
+        - Jobs
+      summary: Run a job (E15)
+      description: |-
+        This function is the runner of a job, started by job_dispatch in a
+        transient systemd unit (arcpanel-job-ID) or with setsid nohup. It runs the
+        job's command within the time limit of its type, writes its output,
+        masked, to data/jobs/ID.log, refreshes HEARTBEAT every 30 seconds and
+        records STATUS, EXIT, ERROR and END, then calls the finish hooks. A failed
+        job of the backup and letsencrypt queues is queued again until it has run
+        QUEUE_MAX_ATTEMPTS times, unless its command marked the failure final. It
+        refuses a job that job_dispatch did not start.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `ID` | yes |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-run-job"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-run-job"
       responses:
         "200":
           description: "The output of the command; `OK` for an empty output with legacy authentication."
@@ -40748,6 +41002,49 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/v-update-sys-ip-counters"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-update-sys-jobs":
+    post:
+      operationId: v-update-sys-jobs
+      tags:
+        - System
+      summary: Run the job queue (E15)
+      description: |-
+        This function runs from cron every minute: it reaps running jobs whose
+        runner is gone or silent, imports the task records of the sources that
+        still wait for it (upgrade to 2.7.0), starts the queued jobs that have a
+        free slot and, once an hour, deletes finished jobs older than 30 days and
+        beyond 500 per user. A run that finds another one running exits.
+
+        **Arguments:** none.
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-update-sys-jobs"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-update-sys-jobs"
       responses:
         "200":
           description: "The output of the command; `OK` for an empty output with legacy authentication."
@@ -47599,6 +47896,33 @@ components:
               enum:
                 - v-backup-users-restic
               default: v-backup-users-restic
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-cancel-job:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-cancel-job
+              default: v-cancel-job
+            arg1:
+              type: string
+              title: ID
+              description: "`ID`"
+              examples:
+                - "17286400001234"
+            arg2:
+              type: string
+              title: ACTOR
+              description: "`ACTOR`, optional"
+              examples:
+                - alice
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-change-app-process-env:
@@ -58645,6 +58969,75 @@ components:
                 - json
             returncode:
               $ref: "#/components/schemas/ReturnCode"
+    v-list-job:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-list-job
+              default: v-list-job
+            arg1:
+              type: string
+              title: ID
+              description: "`ID`"
+              examples:
+                - "17286400001234"
+            arg2:
+              type: string
+              title: OFFSET
+              description: "`OFFSET`, optional"
+              examples:
+                - "0"
+            arg3:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-list-jobs:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-list-jobs
+              default: v-list-jobs
+            arg1:
+              type: string
+              title: SINCE
+              description: "`SINCE`, optional"
+              examples:
+                - all
+            arg2:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
     v-list-letsencrypt-user:
       allOf:
         - $ref: "#/components/schemas/Credentials"
@@ -64827,6 +65220,44 @@ components:
               default: v-resume-sys-arcpanel-autoupdate
             returncode:
               $ref: "#/components/schemas/ReturnCode"
+    v-retry-job:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-retry-job
+              default: v-retry-job
+            arg1:
+              type: string
+              title: ID
+              description: "`ID`"
+              examples:
+                - "17286400001234"
+            arg2:
+              type: string
+              title: ACTOR
+              description: "`ACTOR`, optional"
+              examples:
+                - alice
+            arg3:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
     v-revoke-api-key:
       allOf:
         - $ref: "#/components/schemas/Credentials"
@@ -65247,6 +65678,27 @@ components:
               description: "`ID`"
               examples:
                 - "17611234560042"
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-run-job:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-run-job
+              default: v-run-job
+            arg1:
+              type: string
+              title: ID
+              description: "`ID`"
+              examples:
+                - "17286400001234"
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-run-node-app-build:
@@ -68846,6 +69298,20 @@ components:
               description: "`IP`"
               examples:
                 - ""
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-update-sys-jobs:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-update-sys-jobs
+              default: v-update-sys-jobs
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-update-sys-node-releases:

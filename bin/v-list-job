@@ -1,0 +1,109 @@
+#!/bin/bash
+# info: show a job and its log (E15)
+# options: ID [OFFSET] [FORMAT]
+#
+# example: v-list-job 17286400001234 0 json
+#
+# This function prints the record of job ID (spec §3.2 of
+# docs/features/specs/2026-11-05-001-e15-job-center-design.md) with CLASS
+# and RETRYABLE of its type, and its log from byte OFFSET (default 0), at
+# most 256 KB per call: LOG holds the chunk, OFFSET the offset of the next
+# call and SIZE the size of the log. A running job whose runner is gone is
+# reaped first. Output and arguments are masked.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+id=$1
+offset=${2:-0}
+format=${3-shell}
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/job.sh
+source $ARCPANEL/func/job.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+JOB_CHUNK_MAX=262144
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '1' "$#" 'ID [OFFSET] [FORMAT]'
+if ! job_id_valid "$id"; then
+	check_result "$E_INVALID" "invalid job ID :: $id"
+fi
+if ! [[ "$offset" =~ ^[0-9]{1,12}$ ]]; then
+	check_result "$E_INVALID" "invalid offset :: $offset"
+fi
+if ! job_exists "$id"; then
+	check_result "$E_NOTEXIST" "job $id does not exist"
+fi
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+job_reap_one "$id" > /dev/null 2>&1 || true
+job_read "$id" || check_result "$E_NOTEXIST" "job $id does not exist"
+
+log=$(job_log "$id")
+size=0
+[ -f "$log" ] && size=$(stat -c %s "$log")
+offset=$((10#$offset))
+# A log trimmed under the reader (spec §3.2): go on from its end
+if [ "$offset" -gt "$size" ]; then
+	offset=$size
+fi
+chunk=$(mktemp)
+if [ "$offset" -lt "$size" ]; then
+	tail -c +$((offset + 1)) "$log" | head -c "$JOB_CHUNK_MAX" > "$chunk"
+fi
+length=$(stat -c %s "$chunk")
+# A full chunk ends at its last line break, so the next call starts on a
+# line (and never inside a character)
+if [ "$length" -eq "$JOB_CHUNK_MAX" ]; then
+	cut=$(LC_ALL=C grep -boa $'\n' "$chunk" 2> /dev/null | tail -n1 | cut -d: -f1)
+	if [ -n "$cut" ]; then
+		truncate -s $((cut + 1)) "$chunk"
+		length=$((cut + 1))
+	fi
+fi
+next=$((offset + length))
+# No colours, no carriage returns of progress bars and spinners
+clean=$(mktemp)
+sed -e 's/\x1b\[[0-9;?]*[A-Za-z]//g' -e 's/\r$//' -e 's/.*\r//' -e 's/.\x08//g' "$chunk" | job_mask "$id" > "$clean"
+# job_mask ends every line with a line break; keep an open last line open
+if [ "$length" -gt 0 ] && [ "$(tail -c1 "$chunk" | od -An -tx1 | tr -d ' ')" != '0a' ]; then
+	truncate -s -1 "$clean"
+fi
+
+retryable=no
+job_type_retryable "${JOB[TYPE]}" && retryable=yes
+json=$(head -n1 "$(job_conf "$id")" | job_mask "$id" | jq -R -c "$JOB_JQ_RECORD" \
+	| jq -c --rawfile log "$clean" --arg class "$(job_type_class "${JOB[TYPE]}")" \
+		--arg retryable "$retryable" --argjson offset "$next" --argjson size "$size" \
+		'. + {CLASS: $class, RETRYABLE: $retryable, LOG: $log, OFFSET: $offset, SIZE: $size}')
+rm -f "$chunk" "$clean"
+
+case "$format" in
+	json) printf '%s\n' "$json" | jq . ;;
+	*)
+		printf '%s\n' "$json" | jq -r 'to_entries[] | select(.key != "LOG") | "\(.key): \(.value)"'
+		echo
+		printf '%s\n' "$json" | jq -j .LOG
+		;;
+esac
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+exit

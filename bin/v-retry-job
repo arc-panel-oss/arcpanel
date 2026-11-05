@@ -1,0 +1,93 @@
+#!/bin/bash
+# info: retry a job (E15)
+# options: ID [ACTOR] [FORMAT]
+#
+# example: v-retry-job 17286400001234 alice
+#
+# This function starts a new job with the TYPE, USER, OBJECT and command of
+# a failed or cancelled job whose type is retryable, with RETRY_OF=ID and
+# ACTOR (default cli), and prints the new job ID. A job whose concurrency
+# key is held by a queued or running job is refused with E_INUSE.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+id=$1
+actor=${2:-cli}
+format=${3-shell}
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/tenancy.sh
+source $ARCPANEL/func/tenancy.sh
+# shellcheck source=/usr/local/arcpanel/func/job.sh
+source $ARCPANEL/func/job.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '1' "$#" 'ID [ACTOR] [FORMAT]'
+if ! job_id_valid "$id"; then
+	check_result "$E_INVALID" "invalid job ID :: $id"
+fi
+if ! job_actor_valid "$actor"; then
+	check_result "$E_INVALID" "invalid actor :: $actor"
+fi
+if ! job_exists "$id"; then
+	check_result "$E_NOTEXIST" "job $id does not exist"
+fi
+
+job_reap_one "$id" > /dev/null 2>&1 || true
+job_read "$id"
+status=${JOB[STATUS]}
+type=${JOB[TYPE]}
+if [ "$status" != 'failed' ] && [ "$status" != 'cancelled' ]; then
+	check_result "$E_INVALID" "job $id is $status and cannot be retried"
+fi
+if ! job_type_retryable "$type"; then
+	check_result "$E_INVALID" "jobs of type $type cannot be retried"
+fi
+argv=()
+if [ -f "$(job_argv_file "$id")" ]; then
+	mapfile -d '' argv < "$(job_argv_file "$id")"
+fi
+if [ "${#argv[@]}" -eq 0 ]; then
+	check_result "$E_NOTEXIST" "the command of job $id is not kept"
+fi
+
+# Perform verification if read-only mode is enabled
+check_arcpanel_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+juser=${JOB[USER]}
+object=${JOB[OBJECT]}
+resource=${JOB[RESOURCE]}
+job_create "$type" "$juser" "$object" "$actor" "$resource" -- "${argv[@]}"
+rc=$?
+if [ "$rc" -ne 0 ]; then
+	check_result "$rc" "$JOB_REASON"
+fi
+new=$JOB_ID
+job_set "$new" "RETRY_OF=$id"
+job_dispatch
+job_emit_id "$new" "$format"
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+$BIN/v-log-action "system" "Info" "System" "Job retried (Job: $id, New job: $new, Type: $type, Actor: $actor)."
+log_event "$OK" "$ARGUMENTS"
+
+exit
