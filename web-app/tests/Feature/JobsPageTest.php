@@ -117,3 +117,10 @@ it('puts Jobs in the sidebar of every role', function (string $login, string $ro
     signIn($login, $role);
     $this->get('/jobs')->assertOk()->assertSee('href="'.route('jobs.index').'"', false);
 })->with([['arcadmin', 'admin'], ['hostco', 'reseller'], ['bob', 'user']]);
+
+it('lists a job started a moment after the tray read the jobs', function () {
+    signIn('bob', 'user');
+    $this->getJson('/jobs/tray')->assertOk();
+    fakeJobs($this->fake, [jobRecord('17280000006009', ['TYPE' => 'backup.download', 'STATUS' => 'failed', 'EXIT' => '3'])]);
+    $this->get('/jobs')->assertOk()->assertSee('data-job-id="17280000006009"', false);
+});

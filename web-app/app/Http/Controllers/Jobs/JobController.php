@@ -43,9 +43,12 @@ final class JobController extends Controller
 
     public function __construct(private readonly TaskService $tasks) {}
 
-    public function index(Request $request, Principal $principal, TaskPolicy $policy): View
+    public function index(Request $request, Principal $principal, TaskPolicy $policy, JobIndex $index): View
     {
         abort_unless($policy->viewAny($principal), 403);
+        // The page lists the jobs as they are now: the tray's sync of the
+        // last few seconds is not enough after a job was just started
+        $index->touch();
         $filters = $this->filters($request);
         $page = max(1, (int) $request->query('page', '1'));
         $visible = $policy->visible($principal);
