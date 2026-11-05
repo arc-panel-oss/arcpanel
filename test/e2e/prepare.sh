@@ -267,6 +267,8 @@ appprocesses_prepare() {
 # Object storage (E44): the developer package gets OBJECT_STORAGE='yes',
 # 3 buckets and 300 MB; the keys it had are restored by the clean step.
 OBJSTORE_STATE=/root/.arcpanel-e2e-objstore
+OBJSTORE_SECRET=/e2e/s3-deploy
+OBJSTORE_ENDPOINT=e2e-s3.example
 
 objectstorage_reset() {
 	local bucket key
@@ -279,6 +281,22 @@ objectstorage_reset() {
 	for bucket in $("$B/v-list-user-buckets" arce2edev json 2> /dev/null | jq -r 'keys[]'); do
 		"$B/v-delete-user-bucket" arce2edev "$bucket" > /dev/null 2>&1 || true
 	done
+	# The secret the spec saves with an S3 key (save_as)
+	"$B/v-delete-user-secret" arce2edev "$OBJSTORE_SECRET" yes > /dev/null 2>&1 || true
+	# The endpoint the spec publishes, only when it is still the spec's
+	if [ "$(grep "^SILO_HOSTNAME=" "$ARCPANEL/conf/arcpanel.conf" | cut -d"'" -f2)" = "$OBJSTORE_ENDPOINT" ]; then
+		"$B/v-change-sys-silo-endpoint" none > /dev/null 2>&1 || true
+	fi
+	if "$B/v-list-web-domain" "$(objectstorage_root_user)" "$OBJSTORE_ENDPOINT" > /dev/null 2>&1; then
+		"$B/v-delete-web-domain" "$(objectstorage_root_user)" "$OBJSTORE_ENDPOINT" no > /dev/null 2>&1 || true
+	fi
+}
+
+# The administrator that owns the endpoint domain (ROOT_USER of arcpanel.conf)
+objectstorage_root_user() {
+	local user
+	user=$(grep "^ROOT_USER=" "$ARCPANEL/conf/arcpanel.conf" | cut -d"'" -f2)
+	echo "${user:-admin}"
 }
 
 objectstorage_prepare() {
