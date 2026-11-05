@@ -1064,3 +1064,73 @@ function fakeJobs(ArcCommandFake $fake, array $jobs): void
     }
     $fake->on('v-list-jobs')->returnsJson($all);
 }
+
+/*
+| Alerts (E16): rows of the alert commands for the pages and the API tests
+*/
+
+const ALERT_TOKEN = '123456789:AAbbCCddEEffGGhhIIjjKKllMMnnOOppQQr';
+
+/** @return array<string, array<string, string>> `v-list-alert-rules SCOPE json` */
+function alertRuleRows(string $scope): array
+{
+    $row = fn (string $rule, string $kind, string $title, array $keys = []) => array_replace([
+        'RULE' => $rule, 'KIND' => $kind, 'TITLE' => $title, 'ENABLED' => 'no', 'WARNING' => '', 'CRITICAL' => '', 'FOR' => '0',
+        'SEVERITY' => $kind === 'event' ? 'info' : '', 'COOLDOWN' => '1440', 'CHANNELS' => '17900000000001', 'OPTIONS' => '',
+        'UNIT' => '', 'LEVELS' => 'none', 'INTERVAL' => '1', 'SCOPES' => 'server,user', 'CUSTOM' => 'no',
+    ], $keys);
+    $rules = [
+        'ssl.expiring' => $row('ssl.expiring', 'metric', 'Certificate expiring', ['ENABLED' => 'yes', 'WARNING' => '14', 'CRITICAL' => '3', 'UNIT' => 'days', 'LEVELS' => 'below', 'INTERVAL' => '360', 'CUSTOM' => 'yes']),
+        'backup.failed' => $row('backup.failed', 'event', 'Backup failed', ['ENABLED' => 'yes', 'CUSTOM' => 'yes']),
+    ];
+    if ($scope === 'system') {
+        $rules = ['disk.usage' => $row('disk.usage', 'metric', 'Disk usage', ['ENABLED' => 'yes', 'WARNING' => '90', 'CRITICAL' => '95', 'UNIT' => '%', 'LEVELS' => 'both',
+            'CHANNELS' => '17900000000001,17900000000002', 'SCOPES' => 'server', 'CUSTOM' => 'yes'])] + $rules;
+    }
+
+    return $rules;
+}
+
+/** @return array<string, array<string, string>> `v-list-alert-channels SCOPE json` */
+function alertChannelRows(string $scope): array
+{
+    $rows = ['17900000000001' => ['ID' => '17900000000001', 'NAME' => 'Panel', 'TYPE' => 'panel', 'TARGET' => '', 'ENABLED' => 'yes',
+        'STATUS' => 'ok', 'LAST_SENT' => '2026-11-06 10:00:00', 'FAILS' => '0', 'SECRET_SET' => 'no']];
+    $rows['17900000000002'] = ['ID' => '17900000000002', 'NAME' => 'Ops chat', 'TYPE' => 'telegram', 'TARGET' => '-1001234', 'ENABLED' => 'yes',
+        'STATUS' => 'HTTP 401: Unauthorized', 'LAST_SENT' => '', 'FAILS' => '3', 'SECRET_SET' => 'yes'];
+
+    return $scope === 'carol' ? [] : $rows;
+}
+
+/** @return array<string, array<string, string>> `v-list-alerts SCOPE json` */
+function openAlertRows(string $scope): array
+{
+    $rows = [
+        '17900000000101' => ['ID' => '17900000000101', 'RULE' => 'disk.usage', 'TITLE' => 'Disk usage', 'SCOPE' => 'system', 'OBJECT' => 'mount:/home',
+            'SEVERITY' => 'critical', 'VALUE' => '96% (warning 90%, critical 95%)', 'DETAIL' => '', 'SINCE' => '2026-11-06 09:58:00',
+            'FIRED' => '2026-11-06 09:58:00', 'LAST_NOTIFIED' => '2026-11-06 09:58:00', 'COUNT' => '1'],
+        '17900000000102' => ['ID' => '17900000000102', 'RULE' => 'ssl.expiring', 'TITLE' => 'Certificate expiring', 'SCOPE' => 'bob', 'OBJECT' => 'web:bob.example',
+            'SEVERITY' => 'warning', 'VALUE' => '9 days (warning 14 days, critical 3 days)', 'DETAIL' => '', 'SINCE' => '2026-11-06 06:00:00',
+            'FIRED' => '2026-11-06 06:00:00', 'LAST_NOTIFIED' => '2026-11-06 06:00:00', 'COUNT' => '1'],
+    ];
+
+    return array_filter($rows, fn (array $row) => $scope === 'all' || $row['SCOPE'] === $scope);
+}
+
+/** Alert command fakes of the pages and the API */
+function fakeAlertCommands(ArcCommandFake $fake, array $history = []): void
+{
+    $fake->on('v-list-alert-rules')->using(fn (array $a) => [0, (string) json_encode(alertRuleRows($a[0]))]);
+    $fake->on('v-list-alert-channels')->using(fn (array $a) => [0, (string) json_encode(alertChannelRows($a[0]))]);
+    $fake->on('v-list-alerts')->using(fn (array $a) => [0, (string) json_encode(openAlertRows($a[0]))]);
+    $fake->on('v-list-alert-history')->returnsJson($history);
+}
+
+/** A history line of `v-list-alert-history` */
+function alertLine(string $event, string $id, array $keys = []): array
+{
+    return array_replace(['time' => '2026-11-06 10:00:00', 'event' => $event, 'id' => $id, 'scope' => 'system', 'user' => '', 'owner' => '',
+        'rule' => 'disk.usage', 'object' => 'mount:/home', 'severity' => 'warning', 'value' => '91%', 'message' => '[WARNING] Disk usage: mount:/home on host',
+        'since' => '2026-11-06 09:55:00', 'count' => 1,
+        'deliveries' => [['channel' => '17900000000001', 'name' => 'Panel', 'type' => 'panel', 'result' => 'sent', 'error' => '']]], $keys);
+}

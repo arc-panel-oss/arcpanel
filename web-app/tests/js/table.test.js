@@ -139,6 +139,20 @@ describe('apTable', () => {
 		expect(wrap.classList.contains('is-scrollable')).toBe(true);
 	});
 
+	it('lets the keyboard reach the scroll box only while it scrolls', () => {
+		const html = markup().replace('<table>', '<div class="ap-table-wrap"><table>').replace('</table>', '</table></div>');
+		const root = mount(html);
+		const wrap = root.querySelector('.ap-table-wrap');
+		expect(wrap.hasAttribute('tabindex')).toBe(false);
+		Object.defineProperty(wrap, 'scrollWidth', { configurable: true, value: 900 });
+		Object.defineProperty(wrap, 'clientWidth', { configurable: true, value: 600 });
+		data(root).toggleColumn('disk');
+		expect(wrap.getAttribute('tabindex')).toBe('0');
+		Object.defineProperty(wrap, 'scrollWidth', { configurable: true, value: 600 });
+		data(root).toggleColumn('disk');
+		expect(wrap.hasAttribute('tabindex')).toBe(false);
+	});
+
 	it('works when localStorage throws or holds garbage', () => {
 		localStorage.setItem('ap-table:domains:hidden', '{not json');
 		let root = mount(markup());

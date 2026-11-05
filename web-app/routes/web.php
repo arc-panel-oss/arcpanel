@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Alerts\AlertController;
 use App\Http\Controllers\AppProcesses\AppProcessController;
 use App\Http\Controllers\AppProcesses\AppProcessPageController;
 use App\Http\Controllers\Audit\AuditController;
@@ -336,6 +337,30 @@ Route::middleware('auth.arc')->group(function () {
             Route::post('/rebuild', [JobController::class, 'rebuild'])->name('rebuild');
             Route::post('/{id}/cancel', [JobController::class, 'cancel'])->where('id', '\d{14}')->name('cancel');
             Route::post('/{id}/retry', [JobController::class, 'retry'])->where('id', '\d{14}')->name('retry');
+        });
+    });
+
+    // Alerts and notification channels (E16 spec §7): the scope of an
+    // account, and the server's on Server > Alerts (the user `system`)
+    Route::get('/alerts', [AlertController::class, 'entry'])->name('alerts.index');
+    Route::prefix('alerts/{user}')->name('alerts.')->middleware('effective-user')->group(function () {
+        Route::get('/', [AlertController::class, 'show'])->name('show');
+        Route::middleware('not-readonly')->group(function () {
+            Route::put('/rules/{rule}', [AlertController::class, 'updateRule'])->where('rule', '[a-z0-9.-]{1,64}')->name('rules.update');
+            Route::post('/channels', [AlertController::class, 'storeChannel'])->name('channels.store');
+            Route::put('/channels/{id}', [AlertController::class, 'updateChannel'])->where('id', '\d{14}')->name('channels.update');
+            Route::delete('/channels/{id}', [AlertController::class, 'destroyChannel'])->where('id', '\d{14}')->name('channels.destroy');
+            Route::post('/channels/{id}/test', [AlertController::class, 'testChannel'])->where('id', '\d{14}')->name('channels.test');
+        });
+    });
+    Route::prefix('server/alerts')->name('server.alerts')->group(function () {
+        Route::get('/', [AlertController::class, 'show'])->defaults('user', 'system')->name('');
+        Route::middleware('not-readonly')->group(function () {
+            Route::put('/rules/{rule}', [AlertController::class, 'updateRule'])->where('rule', '[a-z0-9.-]{1,64}')->defaults('user', 'system')->name('.rules.update');
+            Route::post('/channels', [AlertController::class, 'storeChannel'])->defaults('user', 'system')->name('.channels.store');
+            Route::put('/channels/{id}', [AlertController::class, 'updateChannel'])->where('id', '\d{14}')->defaults('user', 'system')->name('.channels.update');
+            Route::delete('/channels/{id}', [AlertController::class, 'destroyChannel'])->where('id', '\d{14}')->defaults('user', 'system')->name('.channels.destroy');
+            Route::post('/channels/{id}/test', [AlertController::class, 'testChannel'])->where('id', '\d{14}')->defaults('user', 'system')->name('.channels.test');
         });
     });
 

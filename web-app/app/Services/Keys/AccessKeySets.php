@@ -36,6 +36,7 @@ final class AccessKeySets
             'v2-security' => __('REST API v2 only: malware scans, findings and quarantine.'),
             'v2-storage' => __('REST API v2 only: object storage buckets and S3 keys.'),
             'v2-audit' => __('REST API v2 only: read and verify the audit log.'),
+            'v2-alerts' => __('REST API v2 only: alert rules, channels and history.'),
         ];
     }
 
@@ -64,6 +65,7 @@ final class AccessKeySets
             'v2-security' => __('Malware scans, findings and quarantine.'),
             'v2-storage' => __('Object storage buckets and S3 keys.'),
             'v2-audit' => __('Read and verify the audit log.'),
+            'v2-alerts' => __('Alert rules, channels and history.'),
             'billing' => __('User accounts and packages for a billing system.'),
             'mail-accounts' => __('Mail accounts.'),
             'phpmyadmin-sso' => __('phpMyAdmin single sign-on.'),

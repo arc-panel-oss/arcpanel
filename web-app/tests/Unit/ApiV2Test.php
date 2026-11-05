@@ -368,6 +368,7 @@ it('declares an area on the batch 1 routes', function () {
             str_contains($uri, '/app-process') => 'apps',
             str_contains($uri, '/web-domains/{domain}/deploy') => 'deploy',
             str_contains($uri, '/web-domains') => 'web',
+            str_starts_with($uri, 'api/v2/alerts'), str_starts_with($uri, 'api/v2/users/{user}/alert') => 'alerts',
             str_contains($uri, '/secrets') => 'secrets',
             str_contains($uri, '/malware') => 'security',
             str_contains($uri, '/dns-zones') => 'dns',

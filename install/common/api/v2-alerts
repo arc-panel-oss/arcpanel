@@ -1,0 +1,4 @@
+# REST API v2 (E16): the alerts of an account: open alerts, rules, channels (secrets are write-only) and history, plus the foundation reads. The server scope (/system/alert-*) is in v2-server. API v1 skips this set.
+ROLE='user'
+API_VERSION='2'
+COMMANDS='v-list-sys-config,v-list-users,v-list-user-owners,v-list-user,v-list-sys-languages,v-list-reseller-packages,v-list-package-tenancy,v-check-reseller-quota,v-list-alerts,v-list-alert-rules,v-list-alert-channels,v-list-alert-history,v-change-alert-rule,v-add-alert-channel,v-change-alert-channel,v-delete-alert-channel,v-test-alert-channel'

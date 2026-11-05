@@ -97,6 +97,11 @@ const tags = [
 		description: 'Long operations run as jobs (E15)',
 	},
 	{
+		name: 'Alerts',
+		words: ['alert', 'alerts'],
+		description: 'Alert rules, notification channels and the alert history (E16)',
+	},
+	{
 		name: 'System',
 		words: [
 			'sys',

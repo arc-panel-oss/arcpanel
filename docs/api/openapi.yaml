@@ -72,7 +72,7 @@ info:
     | `sync-dns-cluster` | admin | `v-list-users`, `v-list-sys-config`, `v-list-user`, `v-add-cron-restart-job`, `v-delete-dns-domains-src`, `v-insert-dns-domain`, `v-insert-dns-record`, `v-insert-dns-records`, `v-rebuild-dns-domains`, `v-rebuild-dns-domain`, `v-delete-dns-record`, `v-make-tmp-file`, `v-delete-dns-domain` |
     | `update-dns-records` | user | `v-list-dns-records`, `v-change-dns-record` |
 
-    The sets `v2-accounts` and `v2-apps` and `v2-audit` and `v2-backup` and `v2-cron` and `v2-db` and `v2-deploy` and `v2-dns` and `v2-files` and `v2-mail` and `v2-observe` and `v2-read` and `v2-secrets` and `v2-security` and `v2-server` and `v2-storage` and `v2-web` and `v2-write` belong to REST API v2 (`/api/v2/`, documented in `docs/api/v2/openapi.json`): this API ignores them, so a key with only those sets may run no command here.
+    The sets `v2-accounts` and `v2-alerts` and `v2-apps` and `v2-audit` and `v2-backup` and `v2-cron` and `v2-db` and `v2-deploy` and `v2-dns` and `v2-files` and `v2-mail` and `v2-observe` and `v2-read` and `v2-secrets` and `v2-security` and `v2-server` and `v2-storage` and `v2-web` and `v2-write` belong to REST API v2 (`/api/v2/`, documented in `docs/api/v2/openapi.json`): this API ignores them, so a key with only those sets may run no command here.
   license:
     name: GPL-3.0-or-later
     identifier: GPL-3.0-or-later
@@ -123,6 +123,8 @@ tags:
     description: Quick Install web applications
   - name: Jobs
     description: Long operations run as jobs (E15)
+  - name: Alerts
+    description: Alert rules, notification channels and the alert history (E16)
   - name: System
     description: Server configuration, services, packages, updates, logs and searches
   - name: Other
@@ -226,6 +228,59 @@ paths:
             application/json:
               schema:
                 type: object
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-add-alert-channel":
+    post:
+      operationId: v-add-alert-channel
+      tags:
+        - Alerts
+      summary: Add an alert channel to a scope (E16)
+      description: |-
+        This function adds a channel to SCOPE (system or a user) and prints its
+        ID. TYPE is email (TARGET: one to five addresses, separated by commas),
+        telegram (TARGET: the chat id; SECRET_FILE: the bot token), slack, discord
+        or mattermost (SECRET_FILE: the incoming-webhook URL). The secret is read
+        from SECRET_FILE, which is deleted, and stored as /arcpanel/alerts/ID in
+        the secret store of the scope's user (the administrator for system); it
+        is never printed again. The panel channel of a scope exists by itself.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `SCOPE` | yes |
+        | `arg2` | `NAME` | yes |
+        | `arg3` | `TYPE` | yes |
+        | `arg4` | `TARGET` | no |
+        | `arg5` | `SECRET_FILE` | no |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-add-alert-channel"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-add-alert-channel"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
         "204":
           $ref: "#/components/responses/NoContent"
         "400":
@@ -3067,6 +3122,53 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/v-add-reseller-user"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-add-sys-alerts":
+    post:
+      operationId: v-add-sys-alerts
+      tags:
+        - System
+      summary: Set up alerts (E16)
+      description: |-
+        This function prepares a server for alerts: the folder data/alerts/, the
+        panel channel of the server scope, the default rules (written once; spec
+        §9) and the engine's cron line, every minute. The server rules use the
+        panel channel and an email channel to the administrator's contact;
+        BACKUP_REPORT off keeps backup.failed on the panel channel only, and
+        UPGRADE_SEND_EMAIL false does the same for update.result. Every user gets
+        ssl.expiring and backup.failed on its panel channel. The nightly port
+        check loses its notify mode: the ports.orphan rule sends its findings. It
+        is safe to run again and keeps rules an administrator has changed.
+
+        **Arguments:** none.
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-add-sys-alerts"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-add-sys-alerts"
       responses:
         "200":
           description: "The output of the command; `OK` for an empty output with legacy authentication."
@@ -7034,6 +7136,118 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/v-cancel-job"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-change-alert-channel":
+    post:
+      operationId: v-change-alert-channel
+      tags:
+        - Alerts
+      summary: Change an alert channel of a scope (E16)
+      description: |-
+        This function changes the name, the switch (yes or no) and, when given,
+        the target of channel ID of SCOPE. A SECRET_FILE replaces the stored token
+        or webhook URL (the file is deleted); an empty or missing SECRET_FILE
+        keeps it. Turning a channel on clears its failure count. The panel channel
+        takes a name and the switch only.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `SCOPE` | yes |
+        | `arg2` | `ID` | yes |
+        | `arg3` | `NAME` | yes |
+        | `arg4` | `ENABLED` | yes |
+        | `arg5` | `TARGET` | no |
+        | `arg6` | `SECRET_FILE` | no |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-change-alert-channel"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-change-alert-channel"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-change-alert-rule":
+    post:
+      operationId: v-change-alert-rule
+      tags:
+        - Alerts
+      summary: Change an alert rule of a scope (E16)
+      description: |-
+        This function writes the line of RULE (a type of the catalog that applies
+        to SCOPE, system or a user) in the scope's rules.conf. Arguments that are
+        not given keep their current value (the catalog default for a rule the
+        scope has no line for); an argument given empty clears the value.
+        WARNING and CRITICAL are the thresholds of metric rules, FOR the minutes
+        the condition must hold, SEVERITY the lowest severity of the events an
+        event rule sends (info, warning or critical), COOLDOWN the minutes between
+        two messages of one open alert, CHANNELS a comma list of channel IDs of
+        the scope and OPTIONS the services or mount points to watch.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `SCOPE` | yes |
+        | `arg2` | `RULE` | yes |
+        | `arg3` | `ENABLED` | yes |
+        | `arg4` | `WARNING` | no |
+        | `arg5` | `CRITICAL` | no |
+        | `arg6` | `FOR` | no |
+        | `arg7` | `SEVERITY` | no |
+        | `arg8` | `COOLDOWN` | no |
+        | `arg9` | `CHANNELS` | no |
+        | `arg10` | `OPTIONS` | no |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-change-alert-rule"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-change-alert-rule"
       responses:
         "200":
           description: "The output of the command; `OK` for an empty output with legacy authentication."
@@ -13169,6 +13383,50 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-check-sys-alerts":
+    post:
+      operationId: v-check-sys-alerts
+      tags:
+        - System
+      summary: Run the alert engine (E16)
+      description: |-
+        This function runs from cron every minute. It retries the deliveries of
+        the outbox, evaluates the metric rules of every scope whose interval has
+        passed, reads the new events of data/alerts/events.log, sends the messages
+        that are due and appends the history. A run that takes longer than 50
+        seconds leaves the remaining rule types to the next run. A run that finds
+        another one running exits.
+
+        **Arguments:** none.
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-check-sys-alerts"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-check-sys-alerts"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-check-sys-app-processes":
     post:
       operationId: v-check-sys-app-processes
@@ -14221,6 +14479,52 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/v-delete-access-key"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-delete-alert-channel":
+    post:
+      operationId: v-delete-alert-channel
+      tags:
+        - Alerts
+      summary: Delete an alert channel of a scope (E16)
+      description: |-
+        This function deletes channel ID of SCOPE with its secret, removes it from
+        the rules of the scope and drops its waiting deliveries. The panel channel
+        cannot be deleted.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `SCOPE` | yes |
+        | `arg2` | `ID` | yes |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-delete-alert-channel"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-delete-alert-channel"
       responses:
         "200":
           description: "The output of the command; `OK` for an empty output with legacy authentication."
@@ -21428,6 +21732,211 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/v-list-access-keys"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-list-alert-channels":
+    post:
+      operationId: v-list-alert-channels
+      tags:
+        - Alerts
+      summary: List the alert channels of a scope (E16)
+      description: |-
+        This function prints the channels of SCOPE (system or a user), keyed by
+        ID: NAME, TYPE, TARGET, ENABLED, STATUS (ok or the last delivery error),
+        LAST_SENT, FAILS (failures in a row) and SECRET_SET (yes when a token or
+        webhook URL is stored). Secrets are never printed. The scope's panel
+        channel is created when it is missing.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `SCOPE` | yes |
+        | `arg2` | `FORMAT` | no |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-list-alert-channels"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-list-alert-channels"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-list-alert-history":
+    post:
+      operationId: v-list-alert-history
+      tags:
+        - Alerts
+      summary: List the alert history (E16)
+      description: |-
+        This function prints the history lines of SCOPE (system, a user, or all
+        for every scope: the panel's index alerts_history is built from it) whose
+        time is at or after SINCE (YYYY-MM-DD HH:MM:SS or YYYY-MM-DD; default the
+        whole history), oldest first. Each line is one fired, raised, reminded,
+        resolved or closed alert, one event, one retried delivery or one test,
+        with its deliveries.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `SCOPE` | yes |
+        | `arg2` | `SINCE` | no |
+        | `arg3` | `FORMAT` | no |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-list-alert-history"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-list-alert-history"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-list-alert-rules":
+    post:
+      operationId: v-list-alert-rules
+      tags:
+        - Alerts
+      summary: List the alert rules of a scope (E16)
+      description: |-
+        This function prints one entry per rule type of the catalog that applies
+        to SCOPE (system or a user), keyed by RULE: its line of rules.conf, or the
+        catalog default with ENABLED no when the scope has none. KIND, TITLE,
+        UNIT, LEVELS (the thresholds the rule takes) and INTERVAL (minutes) come
+        from the catalog.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `SCOPE` | yes |
+        | `arg2` | `FORMAT` | no |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-list-alert-rules"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-list-alert-rules"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-list-alerts":
+    post:
+      operationId: v-list-alerts
+      tags:
+        - Alerts
+      summary: List the open alerts of a scope (E16)
+      description: |-
+        This function prints the open (fired, not yet resolved) metric alerts of
+        SCOPE (system, a user, or all for every scope), keyed by ID: RULE,
+        TITLE, SCOPE, OBJECT, SEVERITY, VALUE, DETAIL, SINCE (condition first
+        seen), FIRED, LAST_NOTIFIED and COUNT (messages sent).
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `SCOPE` | yes |
+        | `arg2` | `FORMAT` | no |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-list-alerts"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-list-alerts"
       responses:
         "200":
           description: "The output of the command; `OK` for an empty output with legacy authentication."
@@ -38747,6 +39256,58 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-test-alert-channel":
+    post:
+      operationId: v-test-alert-channel
+      tags:
+        - Alerts
+      summary: Send a test message to an alert channel (E16)
+      description: |-
+        This function sends a test message to channel ID of SCOPE now, also when
+        the channel is turned off, and prints the result: ok, or the error of the
+        delivery (exit code 15). The channel's STATUS and LAST_SENT are updated;
+        a failed test does not count towards turning the channel off. FORMAT json
+        prints {"RESULT": "ok|failed", "ERROR": "..."}.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `SCOPE` | yes |
+        | `arg2` | `ID` | yes |
+        | `arg3` | `FORMAT` | no |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-test-alert-channel"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-test-alert-channel"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-unsuspend-backup-job":
     post:
       operationId: v-unsuspend-backup-job
@@ -42823,6 +43384,53 @@ components:
                 - json
             returncode:
               $ref: "#/components/schemas/ReturnCode"
+    v-add-alert-channel:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+            - arg3
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-add-alert-channel
+              default: v-add-alert-channel
+            arg1:
+              type: string
+              title: SCOPE
+              description: "`SCOPE`"
+              examples:
+                - system
+            arg2:
+              type: string
+              title: NAME
+              description: "`NAME`"
+              examples:
+                - Ops mail
+            arg3:
+              type: string
+              title: TYPE
+              description: "`TYPE`"
+              examples:
+                - email
+            arg4:
+              type: string
+              title: TARGET
+              description: "`TARGET`, optional"
+              examples:
+                - ops@example.com
+            arg5:
+              type: string
+              title: SECRET_FILE
+              description: "`SECRET_FILE`, optional"
+              examples:
+                - ""
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
     v-add-app-process:
       allOf:
         - $ref: "#/components/schemas/Credentials"
@@ -45429,6 +46037,20 @@ components:
                 - Smith
             returncode:
               $ref: "#/components/schemas/ReturnCode"
+    v-add-sys-alerts:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-add-sys-alerts
+              default: v-add-sys-alerts
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
     v-add-sys-api-ip:
       allOf:
         - $ref: "#/components/schemas/Credentials"
@@ -47883,6 +48505,137 @@ components:
               description: "`ACTOR`, optional"
               examples:
                 - alice
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-change-alert-channel:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+            - arg3
+            - arg4
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-change-alert-channel
+              default: v-change-alert-channel
+            arg1:
+              type: string
+              title: SCOPE
+              description: "`SCOPE`"
+              examples:
+                - system
+            arg2:
+              type: string
+              title: ID
+              description: "`ID`"
+              examples:
+                - "17940000001234"
+            arg3:
+              type: string
+              title: NAME
+              description: "`NAME`"
+              examples:
+                - Ops mail
+            arg4:
+              type: string
+              title: ENABLED
+              description: "`ENABLED`"
+              examples:
+                - "yes"
+            arg5:
+              type: string
+              title: TARGET
+              description: "`TARGET`, optional"
+              examples:
+                - ops@example.com
+            arg6:
+              type: string
+              title: SECRET_FILE
+              description: "`SECRET_FILE`, optional"
+              examples:
+                - ""
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-change-alert-rule:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+            - arg3
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-change-alert-rule
+              default: v-change-alert-rule
+            arg1:
+              type: string
+              title: SCOPE
+              description: "`SCOPE`"
+              examples:
+                - system
+            arg2:
+              type: string
+              title: RULE
+              description: "`RULE`"
+              examples:
+                - disk.usage
+            arg3:
+              type: string
+              title: ENABLED
+              description: "`ENABLED`"
+              examples:
+                - "yes"
+            arg4:
+              type: string
+              title: WARNING
+              description: "`WARNING`, optional"
+              examples:
+                - "85"
+            arg5:
+              type: string
+              title: CRITICAL
+              description: "`CRITICAL`, optional"
+              examples:
+                - "95"
+            arg6:
+              type: string
+              title: FOR
+              description: "`FOR`, optional"
+              examples:
+                - "0"
+            arg7:
+              type: string
+              title: SEVERITY
+              description: "`SEVERITY`, optional"
+              examples:
+                - ""
+            arg8:
+              type: string
+              title: COOLDOWN
+              description: "`COOLDOWN`, optional"
+              examples:
+                - "1440"
+            arg9:
+              type: string
+              title: CHANNELS
+              description: "`CHANNELS`, optional"
+              examples:
+                - "12345678901234"
+            arg10:
+              type: string
+              title: OPTIONS
+              description: "`OPTIONS`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-change-app-process-env:
@@ -52366,6 +53119,20 @@ components:
                 - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
+    v-check-sys-alerts:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-check-sys-alerts
+              default: v-check-sys-alerts
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
     v-check-sys-app-processes:
       allOf:
         - $ref: "#/components/schemas/Credentials"
@@ -53021,6 +53788,34 @@ components:
               description: "`ACCESS_KEY_ID`"
               examples:
                 - mykey
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-delete-alert-channel:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-delete-alert-channel
+              default: v-delete-alert-channel
+            arg1:
+              type: string
+              title: SCOPE
+              description: "`SCOPE`"
+              examples:
+                - system
+            arg2:
+              type: string
+              title: ID
+              description: "`ID`"
+              examples:
+                - "17940000001234"
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-delete-app-process:
@@ -57323,6 +58118,140 @@ components:
               description: "`USER`, optional"
               examples:
                 - json
+            arg2:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-list-alert-channels:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-list-alert-channels
+              default: v-list-alert-channels
+            arg1:
+              type: string
+              title: SCOPE
+              description: "`SCOPE`"
+              examples:
+                - system
+            arg2:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-list-alert-history:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-list-alert-history
+              default: v-list-alert-history
+            arg1:
+              type: string
+              title: SCOPE
+              description: "`SCOPE`"
+              examples:
+                - system
+            arg2:
+              type: string
+              title: SINCE
+              description: "`SINCE`, optional"
+              examples:
+                - "2026-11-06 10:00:00"
+            arg3:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-list-alert-rules:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-list-alert-rules
+              default: v-list-alert-rules
+            arg1:
+              type: string
+              title: SCOPE
+              description: "`SCOPE`"
+              examples:
+                - system
+            arg2:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-list-alerts:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-list-alerts
+              default: v-list-alerts
+            arg1:
+              type: string
+              title: SCOPE
+              description: "`SCOPE`"
+              examples:
+                - system
             arg2:
               type: string
               title: FORMAT
@@ -68072,6 +69001,45 @@ components:
               description: "`HOST`"
               examples:
                 - ""
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-test-alert-channel:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-test-alert-channel
+              default: v-test-alert-channel
+            arg1:
+              type: string
+              title: SCOPE
+              description: "`SCOPE`"
+              examples:
+                - system
+            arg2:
+              type: string
+              title: ID
+              description: "`ID`"
+              examples:
+                - "17940000001234"
+            arg3:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-unsuspend-backup-job:

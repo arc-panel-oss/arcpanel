@@ -4,7 +4,7 @@
 // header has data-default-hidden start hidden until the viewer picks them.
 // Selection checkboxes are [data-select-row] (value = item id) and
 // [data-select-all]; changes are announced as the window event
-// "ap-table-selection" {id, items}. The scroll box gets .is-scrollable while
+// "ap-table-selection" {id, items}. The scroll box gets .is-scrollable and a tab stop while
 // the table is wider than it. With perPage, the rows that match the filter
 // are shown one page at a time (firstShown–lastShown of visibleCount).
 import { readStore, writeStore } from './storage.js';
@@ -173,7 +173,17 @@ export default function apTable({ id = '', perPage = 0 } = {}) {
 			if (!wrap) {
 				return;
 			}
-			this.measure = () => wrap.classList.toggle('is-scrollable', wrap.scrollWidth > wrap.clientWidth + 1);
+			// A scroll box takes the keyboard focus while it scrolls, so a table
+			// without links or buttons can still be scrolled (axe scrollable-region-focusable)
+			this.measure = () => {
+				const scrollable = wrap.scrollWidth > wrap.clientWidth + 1;
+				wrap.classList.toggle('is-scrollable', scrollable);
+				if (scrollable) {
+					wrap.setAttribute('tabindex', '0');
+				} else {
+					wrap.removeAttribute('tabindex');
+				}
+			};
 			if (typeof ResizeObserver === 'function') {
 				this.observer = new ResizeObserver(() => this.measure());
 				this.observer.observe(wrap);

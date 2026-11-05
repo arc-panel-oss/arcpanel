@@ -5,9 +5,9 @@
 # example: v-list-alerts system json
 #
 # This function prints the open (fired, not yet resolved) metric alerts of
-# SCOPE (system or a user), keyed by ID: RULE, TITLE, OBJECT, SEVERITY,
-# VALUE, DETAIL, SINCE (condition first seen), FIRED, LAST_NOTIFIED and
-# COUNT (messages sent).
+# SCOPE (system, a user, or all for every scope), keyed by ID: RULE,
+# TITLE, SCOPE, OBJECT, SEVERITY, VALUE, DETAIL, SINCE (condition first
+# seen), FIRED, LAST_NOTIFIED and COUNT (messages sent).
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -32,7 +32,9 @@ source_conf "$ARCPANEL/conf/arcpanel.conf"
 #----------------------------------------------------------#
 
 check_args '1' "$#" 'SCOPE [FORMAT]'
-alerts_check_scope "$scope"
+if [ "$scope" != 'all' ]; then
+	alerts_check_scope "$scope"
+fi
 
 #----------------------------------------------------------#
 #                       Action                             #
@@ -45,7 +47,7 @@ done
 
 json=$(cat "$ALERTS_STATE" 2> /dev/null | jq -R -s -c --arg scope "$scope" --argjson titles "$titles" "
 	split(\"\n\") | map(select(length > 0) | $ALERTS_JQ_RECORD
-		| select(.SCOPE == \$scope and .KIND == \"metric\" and (.FIRED // \"\") != \"\")
+		| select((\$scope == \"all\" or .SCOPE == \$scope) and .KIND == \"metric\" and (.FIRED // \"\") != \"\")
 		| {ID, RULE, TITLE: (\$titles[.RULE] // .RULE), SCOPE, OBJECT, SEVERITY, VALUE, DETAIL: (.DETAIL // \"\"),
 			SINCE, FIRED, LAST_NOTIFIED, COUNT})
 	| map({key: .ID, value: .}) | from_entries")

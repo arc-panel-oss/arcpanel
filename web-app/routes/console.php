@@ -12,3 +12,8 @@ Schedule::command('files:gc')->everyFifteenMinutes()->withoutOverlapping();
 // a full rebuild every night
 Schedule::command('arcpanel:jobs-sync')->everyMinute()->withoutOverlapping();
 Schedule::command('arcpanel:jobs-sync --full')->dailyAt('03:50')->withoutOverlapping();
+
+// The alert history (E16 spec §7): the history lines since the last run, and
+// a full rebuild every night
+Schedule::command('arcpanel:alerts-sync')->everyMinute()->withoutOverlapping();
+Schedule::command('arcpanel:alerts-sync --full')->dailyAt('03:55')->withoutOverlapping();

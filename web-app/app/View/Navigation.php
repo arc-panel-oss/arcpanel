@@ -131,6 +131,8 @@ final class Navigation
                 ]],
                 ['route' => 'server.php.index', 'label' => 'PHP', 'icon' => 'code', 'cap' => 'server.php', 'section' => 'server.php.'],
                 ['route' => 'audit.index', 'label' => 'Audit log', 'icon' => 'history', 'cap' => 'audit.verify', 'section' => 'audit.'],
+                // Alerts of the server (E16 spec §7)
+                ['route' => 'server.alerts', 'label' => 'Alerts', 'icon' => 'bell', 'cap' => 'server.view', 'section' => 'server.alerts'],
                 ['hub' => 'updates', 'label' => 'Updates', 'icon' => 'refresh', 'children' => [
                     ['route' => 'server.updates', 'label' => 'Updates', 'tab' => 'ArcPanel', 'icon' => 'refresh', 'cap' => 'server.updates', 'section' => 'server.updates',
                         'tabs' => ['server.updates']],
@@ -144,6 +146,8 @@ final class Navigation
             'items' => [
                 // Job Center (E15 spec §6.2): the jobs of the account, its customers and, for administrators, the server
                 ['route' => 'jobs.index', 'label' => 'Jobs', 'icon' => 'activity', 'cap' => 'tasks.view', 'section' => 'jobs.'],
+                // Alerts and channels of the account (E16 spec §7)
+                ['route' => 'alerts.index', 'label' => 'Alerts', 'icon' => 'bell', 'cap' => 'alerts.view', 'section' => 'alerts.'],
                 ['route' => 'logs.index', 'label' => 'Logs', 'icon' => 'file', 'cap' => 'logs.view', 'policy' => 'POLICY_USER_VIEW_LOGS', 'section' => 'logs.'],
                 ['route' => 'stats.index', 'label' => 'Statistics', 'icon' => 'trend', 'cap' => 'stats.view', 'section' => 'stats.'],
                 ['hub' => 'keys', 'label' => 'Keys', 'icon' => 'key', 'children' => [

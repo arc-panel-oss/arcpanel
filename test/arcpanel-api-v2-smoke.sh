@@ -27,6 +27,10 @@
 # trusted publisher and turns it off again; the deploy port is open while it
 # is on. Nothing is uploaded or deployed.
 #
+# Alerts (E16) add an email channel and, when the secret store is set up, a
+# Slack channel whose webhook points at a closed local port, so its test
+# fails without leaving the server; both are deleted again.
+#
 # Run as root on a test server, never on production.
 
 set -euo pipefail
@@ -43,6 +47,7 @@ FILES_USER="${SMOKE_USER}f"
 ACCOUNTS_USER="${SMOKE_USER}c"
 PHP_USER="${SMOKE_USER}p"
 MALWARE_USER="${SMOKE_USER}m"
+ALERTS_USER="${SMOKE_USER}l"
 PHP_PACKAGE="$SMOKE_PACKAGE-php"
 APPS_PACKAGE="$SMOKE_PACKAGE-apps"
 STORAGE_PACKAGE="$SMOKE_PACKAGE-s3"
@@ -74,6 +79,7 @@ cleanup() {
 	"$ARCPANEL/bin/v-delete-user" "$ACCOUNTS_USER" > /dev/null 2>&1 || true
 	"$ARCPANEL/bin/v-delete-user" "$PHP_USER" > /dev/null 2>&1 || true
 	"$ARCPANEL/bin/v-delete-user" "$MALWARE_USER" > /dev/null 2>&1 || true
+	"$ARCPANEL/bin/v-delete-user" "$ALERTS_USER" > /dev/null 2>&1 || true
 	if [ "$OLD_MALWARE_SCAN" = yes ]; then
 		"$ARCPANEL/bin/v-add-sys-malware-scan" quiet
 	else
@@ -1094,6 +1100,48 @@ check "a dry run is not recorded" 0 "$(
 )"
 check "verifyAuditChain answers an intact chain" true "$(call "$AUDIT_KEY" GET "/audit/verify?from=$AUDIT_FROM" > /dev/null && json .data.ok)"
 check "v-check-sys-audit agrees" 0 "$("$ARCPANEL/bin/v-check-sys-audit" "$AUDIT_FROM" > /dev/null && echo 0 || echo $?)"
+
+# Alerts (E16 spec §8): an account's rules and channels with a key holding
+# only v2-alerts; the server scope is the server area (v2-server)
+check "a user for alerts" 201 "$(call "$ADMIN" POST /users "{\"username\": \"$ALERTS_USER\", \"password\": \"$SMOKE_PASS\", \"email\": \"$ALERTS_USER@example.invalid\", \"name\": \"Smoke alerts\", \"package\": \"default\"}")"
+ALERTS_KEY="$(new_key "$ALERTS_USER" v2-alerts)"
+ALERTS="/users/$ALERTS_USER"
+check "listAlertRules answers 200 with a key holding only v2-alerts" 200 "$(call "$ALERTS_KEY" GET "$ALERTS/alert-rules")"
+check "the account has the ssl.expiring rule" 1 "$(json '[.data[] | select(.rule == "ssl.expiring")] | length')"
+check "listAlertChannels answers 200" 200 "$(call "$ALERTS_KEY" GET "$ALERTS/alert-channels")"
+alerts_panel="$(json '[.data[] | select(.type == "panel")][0].id')"
+check "the account has its panel channel" true "$([[ "$alerts_panel" =~ ^[0-9]{14}$ ]] && echo true || echo false)"
+check "createAlertChannel dry run answers 200" 200 "$(call "$ALERTS_KEY" POST "$ALERTS/alert-channels?dry_run=1" '{"name": "Smoke mail", "type": "email", "target": "alerts@example.invalid"}')"
+check "the dry run plans v-add-alert-channel" v-add-alert-channel "$(json '.data.steps[0].command')"
+check "createAlertChannel answers 201" 201 "$(call "$ALERTS_KEY" POST "$ALERTS/alert-channels" '{"name": "Smoke mail", "type": "email", "target": "alerts@example.invalid"}')"
+alerts_mail="$(json .data.id)"
+check "a v2-read key may not add a channel" 403 "$(call "$(new_key "$ALERTS_USER" v2-read)" POST "$ALERTS/alert-channels" '{"name": "Read", "type": "email", "target": "read@example.invalid"}')"
+check "updateAlertRule answers 200" 200 "$(call "$ALERTS_KEY" PUT "$ALERTS/alert-rules/ssl.expiring" "{\"warning\": 20, \"channels\": [\"$alerts_panel\", \"$alerts_mail\"]}")"
+check "the rule sends to both channels at 20 days" "20 2" "$(json '"\(.data.warning) \(.data.channels | length)"')"
+check "the command has the change" "$alerts_panel,$alerts_mail" "$("$ARCPANEL/bin/v-list-alert-rules" "$ALERTS_USER" json | jq -r '.["ssl.expiring"].CHANNELS')"
+check "testAlertChannel of the panel channel answers ok" "200 true" "$(call "$ALERTS_KEY" POST "$ALERTS/alert-channels/$alerts_panel/test") $(json .data.ok)"
+if ! command -v age > /dev/null 2>&1 || [ ! -f "$ARCPANEL/data/secrets/.master/identity" ]; then
+	skip "alerts: the secret store is not set up, no Slack channel"
+else
+	check "a Slack channel answers 201" 201 "$(call "$ALERTS_KEY" POST "$ALERTS/alert-channels" '{"name": "Smoke Slack", "type": "slack", "secret": "http://127.0.0.1:9/arcsmoke-hook"}')"
+	alerts_slack="$(json .data.id)"
+	check "the answer holds no webhook URL" "true 0" "$(json .data.secret_set) $(grep -c arcsmoke-hook "$BODY" || true)"
+	check "the test of the closed port fails with an error" "200 false true" "$(call "$ALERTS_KEY" POST "$ALERTS/alert-channels/$alerts_slack/test") $(json .data.ok) $(json '.data.error | length > 0')"
+	if grep -q arcsmoke-hook "$BODY"; then fail "the test error names the webhook URL"; else ok "the test error hides the webhook URL"; fi
+	check "the Slack channel is deleted" 204 "$(call "$ALERTS_KEY" DELETE "$ALERTS/alert-channels/$alerts_slack")"
+fi
+check "listAlertHistory answers 200" 200 "$(call "$ALERTS_KEY" GET "$ALERTS/alert-history?limit=10")"
+check "listAlerts answers 200" 200 "$(call "$ALERTS_KEY" GET /alerts)"
+check "the panel channel cannot be deleted" 403 "$(call "$ALERTS_KEY" DELETE "$ALERTS/alert-channels/$alerts_panel")"
+check "deleteAlertChannel answers 204" 204 "$(call "$ALERTS_KEY" DELETE "$ALERTS/alert-channels/$alerts_mail")"
+check "the rule no longer names the deleted channel" "$alerts_panel" "$("$ARCPANEL/bin/v-list-alert-rules" "$ALERTS_USER" json | jq -r '.["ssl.expiring"].CHANNELS')"
+check "the v2-alerts key may not list web domains" 403 "$(call "$ALERTS_KEY" GET "$ALERTS/web-domains")"
+check "the v2-alerts key may not read the server rules" 403 "$(call "$ALERTS_KEY" GET /system/alert-rules)"
+check "listSystemAlertRules answers 200 for the administrator" 200 "$(call "$ADMIN" GET /system/alert-rules)"
+check "the server has the disk.usage rule" 1 "$(json '[.data[] | select(.rule == "disk.usage")] | length')"
+check "listSystemAlertChannels answers 200" 200 "$(call "$ADMIN" GET /system/alert-channels)"
+check "listSystemAlertHistory answers 200" 200 "$(call "$ADMIN" GET '/system/alert-history?limit=10')"
+check "the alerts user is deleted" 204 "$(call "$ADMIN" DELETE "/users/$ALERTS_USER")"
 
 if [ "$failures" -gt 0 ]; then
 	echo "$failures check(s) failed"

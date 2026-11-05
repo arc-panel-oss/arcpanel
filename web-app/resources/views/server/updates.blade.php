@@ -189,6 +189,8 @@
                     <x-ap-form :action="route('server.updates.notifications')">
                         <fieldset class="ap-fieldset-plain" @disabled(! $canManage)>
                             <x-ap-switch name="send_email" :label="__('Send email notification when an update has been installed')" :checked="$sendEmail" />
+                            <p class="muted" data-alerts-link>{{ __('Update results are sent by the alert rule ArcPanel update; this switch turns its email to the administrator on or off.') }}
+                                <a href="{{ route('server.alerts', ['tab' => 'rules']) }}#rules">{{ __('Alert rules') }}</a></p>
                             <x-ap-switch name="send_log" :label="__('Send update installation log by email')" :checked="$sendLog" />
                         </fieldset>
                         @if ($canManage)

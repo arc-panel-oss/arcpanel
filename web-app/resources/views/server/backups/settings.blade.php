@@ -36,6 +36,8 @@
             <x-ap-card :title="__('Reports')" icon="mail">
                 <x-ap-select name="report" :label="__('Mail to the administrator')" :value="$config['BACKUP_REPORT'] ?? 'failures'"
                     :options="['failures' => __('When a job run fails or is partial'), 'daily' => __('A daily summary at 07:00, and failures'), 'off' => __('None (notifications in the panel only)')]" />
+                <p class="muted" data-alerts-link>{{ __('Failed backups are sent by the alert rule Backup failed; this setting turns its email to the administrator on or off.') }}
+                    <a href="{{ route('server.alerts', ['tab' => 'rules']) }}#rules">{{ __('Alert rules') }}</a></p>
             </x-ap-card>
         </fieldset>
         @if ($canEdit)

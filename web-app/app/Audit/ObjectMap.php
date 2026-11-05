@@ -49,6 +49,11 @@ final class ObjectMap
     /** Object type of a parameter in one module (the first segment of the route name). */
     private const MODULE_TYPES = [
         'access-keys.key' => 'access_key',
+        // Alerts (E16 §7, §8): rules and channels of a scope
+        'alerts.rule' => 'alert_rule',
+        'alerts.id' => 'alert_channel',
+        'alert-rules.rule' => 'alert_rule',
+        'alert-channels.id' => 'alert_channel',
         'app-processes.domain' => 'web_domain',
         'app-processes.name' => 'app_process',
         'backup-jobs.job' => 'backup_job',

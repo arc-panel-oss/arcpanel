@@ -49,6 +49,11 @@
 #                                 job of the server and queues a backup of USER;
 #                                 prints its ID; jobs-release ends the hold and
 #                                 cancels what USER still has queued (E15)
+#   prepare.sh alerts-listen PORT a webhook stub on 127.0.0.1:PORT that answers
+#                                 every POST with 200 and counts them;
+#                                 alerts-posts PORT prints the count,
+#                                 alerts-clean USER deletes the channels of
+#                                 USER and of the server named E2E* (E16)
 #   prepare.sh backups            a local restic repository (when the server
 #                                 has none), a web domain, ~/tmp/e2e-note.txt,
 #                                 one tar backup and one snapshot for
@@ -831,6 +836,39 @@ PHP
 		;;
 	reset-clean)
 		reset_clean
+		exit 0
+		;;
+	alerts-listen)
+		port="${2:?port}"
+		dir="/tmp/arce2e-listen-alerts-$port"
+		mkdir -p "$dir"
+		cat > "$dir/router.php" << 'PHP'
+<?php
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+	file_put_contents(__DIR__ . '/posts.log', "post\n", FILE_APPEND);
+}
+echo 'ok';
+PHP
+		cd "$dir" || exit 1
+		setsid nohup "$ARCPANEL/php/bin/php" -S "127.0.0.1:$port" router.php > /dev/null 2>&1 < /dev/null &
+		for _ in $(seq 1 25); do
+			if ss -Hltn "sport = :$port" | grep -q .; then
+				exit 0
+			fi
+			sleep 0.2
+		done
+		exit 1
+		;;
+	alerts-posts)
+		wc -l < "/tmp/arce2e-listen-alerts-${2:?port}/posts.log" 2> /dev/null || echo 0
+		exit 0
+		;;
+	alerts-clean)
+		for scope in "${2:?user}" system; do
+			for id in $("$B/v-list-alert-channels" "$scope" json 2> /dev/null | jq -r 'to_entries[] | select(.value.NAME | startswith("E2E")) | .key'); do
+				"$B/v-delete-alert-channel" "$scope" "$id" > /dev/null 2>&1 || true
+			done
+		done
 		exit 0
 		;;
 	jobs-failed)

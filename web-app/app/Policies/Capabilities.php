@@ -182,6 +182,11 @@ final class Capabilities
         'tasks.view' => self::ALL_ROLES,
         'tasks.manage' => self::ALL_ROLES,
 
+        // Alerts and notification channels (E16 spec §7): the scope of an
+        // account; the server scope needs server.view and server.settings
+        'alerts.view' => self::ALL_ROLES,
+        'alerts.manage' => self::ALL_ROLES,
+
         // Server pages of E7 batch 3 (spec §5.1)
         'server.services' => self::ADMIN,
         'server.settings' => self::ADMIN,

@@ -112,6 +112,88 @@
                 "x-arcpanel-permission-set": "v2-accounts"
             }
         },
+        "/alerts": {
+            "get": {
+                "operationId": "listAlerts",
+                "description": "The open metric alerts of the server scope (administrators) and of\nevery account scope in the key's reach, sorted by id.",
+                "summary": "List the open alerts the key sees",
+                "tags": [
+                    "Alerts"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Array of `Alert`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/Alert"
+                                            }
+                                        },
+                                        "meta": {
+                                            "$ref": "#/components/schemas/ListMeta"
+                                        }
+                                    },
+                                    "required": [
+                                        "data",
+                                        "meta"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "description": "Page size, from 1 to 1000. Without it the list is complete.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 1000
+                        }
+                    },
+                    {
+                        "name": "offset",
+                        "in": "query",
+                        "description": "Items to skip. Used when `limit` is set; 0 when omitted.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 0
+                        }
+                    }
+                ],
+                "x-arcpanel-permission-set": "v2-alerts"
+            }
+        },
         "/audit": {
             "get": {
                 "operationId": "listAuditEvents",
@@ -2404,6 +2486,826 @@
                     }
                 ],
                 "x-arcpanel-permission-set": "v2-accounts"
+            }
+        },
+        "/system/alert-channels": {
+            "get": {
+                "operationId": "listSystemAlertChannels",
+                "description": "Secrets are never listed: `secret_set` says whether one is stored.",
+                "summary": "List the alert channels of the server",
+                "tags": [
+                    "Alerts"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Array of `AlertChannel`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/AlertChannel"
+                                            }
+                                        },
+                                        "meta": {
+                                            "$ref": "#/components/schemas/ListMeta"
+                                        }
+                                    },
+                                    "required": [
+                                        "data",
+                                        "meta"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "description": "Page size, from 1 to 1000. Without it the list is complete.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 1000
+                        }
+                    },
+                    {
+                        "name": "offset",
+                        "in": "query",
+                        "description": "Items to skip. Used when `limit` is set; 0 when omitted.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 0
+                        }
+                    }
+                ],
+                "x-arcpanel-permission-set": "v2-server"
+            },
+            "post": {
+                "operationId": "createSystemAlertChannel",
+                "description": "The fields of `createAlertChannel`; the secret goes to the secret store\nof the administrator account.",
+                "summary": "Add an alert channel to the server",
+                "tags": [
+                    "Alerts"
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/CreateAlertChannelRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "With `dry_run`: the planned steps; nothing ran.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DryRun"
+                                }
+                            }
+                        }
+                    },
+                    "201": {
+                        "description": "`AlertChannel`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/AlertChannel"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            },
+                            "Location": {
+                                "$ref": "#/components/headers/Location"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "x-arcpanel-permission-set": "v2-server"
+            }
+        },
+        "/system/alert-channels/{id}": {
+            "put": {
+                "operationId": "updateSystemAlertChannel",
+                "description": "The fields of `updateAlertChannel`.",
+                "summary": "Change an alert channel of the server",
+                "tags": [
+                    "Alerts"
+                ],
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateAlertChannelRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "`AlertChannel`; with `dry_run`, the planned steps.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "oneOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "$ref": "#/components/schemas/AlertChannel"
+                                                }
+                                            },
+                                            "required": [
+                                                "data"
+                                            ]
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/DryRun"
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                },
+                "x-arcpanel-permission-set": "v2-server"
+            },
+            "delete": {
+                "operationId": "deleteSystemAlertChannel",
+                "description": "Deletes its secret and removes it from the server rules. The panel\nchannel cannot be deleted (403 `E_FORBIDDEN`).",
+                "summary": "Delete an alert channel of the server",
+                "tags": [
+                    "Alerts"
+                ],
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "With `dry_run`: the planned steps; nothing ran.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DryRun"
+                                }
+                            }
+                        }
+                    },
+                    "204": {
+                        "description": "No content.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                },
+                "x-arcpanel-permission-set": "v2-server"
+            }
+        },
+        "/system/alert-channels/{id}/test": {
+            "post": {
+                "operationId": "testSystemAlertChannel",
+                "description": "Sends now, also to a channel that is off, and answers the result:\n`ok` false with the delivery's `error`.",
+                "summary": "Send a test message to an alert channel of the server",
+                "tags": [
+                    "Alerts"
+                ],
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "; with `dry_run`, the planned steps.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "oneOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "ok": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "error": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "ok",
+                                                        "error"
+                                                    ]
+                                                }
+                                            },
+                                            "required": [
+                                                "data"
+                                            ]
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/DryRun"
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                },
+                "x-arcpanel-permission-set": "v2-server"
+            }
+        },
+        "/system/alert-history": {
+            "get": {
+                "operationId": "listSystemAlertHistory",
+                "description": "Newest first: fired, raised, reminded and resolved alerts and events\nof the server scope with their deliveries. Filters: `rule`,\n`severity`, `since`.",
+                "summary": "List the alert history of the server",
+                "tags": [
+                    "Alerts"
+                ],
+                "parameters": [
+                    {
+                        "name": "rule",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "pattern": "^[a-z0-9.-]{1,64}$"
+                        }
+                    },
+                    {
+                        "name": "severity",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "info",
+                                "warning",
+                                "critical"
+                            ]
+                        }
+                    },
+                    {
+                        "name": "since",
+                        "in": "query",
+                        "description": "YYYY-MM-DD or a date and time, server time.",
+                        "schema": {
+                            "type": "string",
+                            "format": "date-time"
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "description": "Page size, from 1 to 1000. Without it the list is complete.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 1000
+                        }
+                    },
+                    {
+                        "name": "offset",
+                        "in": "query",
+                        "description": "Items to skip. Used when `limit` is set; 0 when omitted.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 0
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Array of `AlertHistory`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/AlertHistory"
+                                            }
+                                        },
+                                        "meta": {
+                                            "$ref": "#/components/schemas/ListMeta"
+                                        }
+                                    },
+                                    "required": [
+                                        "data",
+                                        "meta"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                },
+                "x-arcpanel-permission-set": "v2-server"
+            }
+        },
+        "/system/alert-rules": {
+            "get": {
+                "operationId": "listSystemAlertRules",
+                "description": "Every server rule type of the catalog, with the catalog default for a\nrule the server has not changed.",
+                "summary": "List the alert rules of the server",
+                "tags": [
+                    "Alerts"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Array of `AlertRule`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/AlertRule"
+                                            }
+                                        },
+                                        "meta": {
+                                            "$ref": "#/components/schemas/ListMeta"
+                                        }
+                                    },
+                                    "required": [
+                                        "data",
+                                        "meta"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "description": "Page size, from 1 to 1000. Without it the list is complete.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 1000
+                        }
+                    },
+                    {
+                        "name": "offset",
+                        "in": "query",
+                        "description": "Items to skip. Used when `limit` is set; 0 when omitted.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 0
+                        }
+                    }
+                ],
+                "x-arcpanel-permission-set": "v2-server"
+            }
+        },
+        "/system/alert-rules/{rule}": {
+            "get": {
+                "operationId": "getSystemAlertRule",
+                "summary": "Show an alert rule of the server",
+                "tags": [
+                    "Alerts"
+                ],
+                "parameters": [
+                    {
+                        "name": "rule",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "`AlertRule`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/AlertRule"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                },
+                "x-arcpanel-permission-set": "v2-server"
+            },
+            "put": {
+                "operationId": "updateSystemAlertRule",
+                "description": "The fields of `updateAlertRule`; fields left out keep their value.",
+                "summary": "Change an alert rule of the server",
+                "tags": [
+                    "Alerts"
+                ],
+                "parameters": [
+                    {
+                        "name": "rule",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateAlertRuleRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "`AlertRule`; with `dry_run`, the planned steps.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "oneOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "$ref": "#/components/schemas/AlertRule"
+                                                }
+                                            },
+                                            "required": [
+                                                "data"
+                                            ]
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/DryRun"
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                },
+                "x-arcpanel-permission-set": "v2-server"
             }
         },
         "/system/backup-destinations": {
@@ -11938,6 +12840,1002 @@
                     }
                 },
                 "x-arcpanel-permission-set": "v2-accounts"
+            }
+        },
+        "/users/{user}/alert-channels": {
+            "get": {
+                "operationId": "listAlertChannels",
+                "description": "Secrets are never listed: `secret_set` says whether one is stored.",
+                "summary": "List the alert channels of an account",
+                "tags": [
+                    "Alerts"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "description": "Page size, from 1 to 1000. Without it the list is complete.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 1000
+                        }
+                    },
+                    {
+                        "name": "offset",
+                        "in": "query",
+                        "description": "Items to skip. Used when `limit` is set; 0 when omitted.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 0
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Array of `AlertChannel`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/AlertChannel"
+                                            }
+                                        },
+                                        "meta": {
+                                            "$ref": "#/components/schemas/ListMeta"
+                                        }
+                                    },
+                                    "required": [
+                                        "data",
+                                        "meta"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                },
+                "x-arcpanel-permission-set": "v2-alerts"
+            },
+            "post": {
+                "operationId": "createAlertChannel",
+                "description": "`type` is `email` (`target`: one to five addresses, comma-separated),\n`telegram` (`target`: the chat id; `secret`: the bot token), `slack`,\n`discord` or `mattermost` (`secret`: the incoming-webhook URL). The\nsecret goes to the secret store of the account and is never returned.",
+                "summary": "Add an alert channel to an account",
+                "tags": [
+                    "Alerts"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/CreateAlertChannelRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "With `dry_run`: the planned steps; nothing ran.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DryRun"
+                                }
+                            }
+                        }
+                    },
+                    "201": {
+                        "description": "`AlertChannel`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/AlertChannel"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            },
+                            "Location": {
+                                "$ref": "#/components/headers/Location"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                },
+                "x-arcpanel-permission-set": "v2-alerts"
+            }
+        },
+        "/users/{user}/alert-channels/{id}": {
+            "put": {
+                "operationId": "updateAlertChannel",
+                "description": "`name` and `enabled` are required; `target` replaces the addresses or\nchat id; `secret` replaces the stored token or URL, which stays when it\nis left out. Turning a channel on clears its failures.",
+                "summary": "Change an alert channel of an account",
+                "tags": [
+                    "Alerts"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateAlertChannelRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "`AlertChannel`; with `dry_run`, the planned steps.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "oneOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "$ref": "#/components/schemas/AlertChannel"
+                                                }
+                                            },
+                                            "required": [
+                                                "data"
+                                            ]
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/DryRun"
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                },
+                "x-arcpanel-permission-set": "v2-alerts"
+            },
+            "delete": {
+                "operationId": "deleteAlertChannel",
+                "description": "Deletes its secret and removes it from the rules of the account. The\npanel channel cannot be deleted (403 `E_FORBIDDEN`).",
+                "summary": "Delete an alert channel of an account",
+                "tags": [
+                    "Alerts"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "With `dry_run`: the planned steps; nothing ran.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DryRun"
+                                }
+                            }
+                        }
+                    },
+                    "204": {
+                        "description": "No content.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                },
+                "x-arcpanel-permission-set": "v2-alerts"
+            }
+        },
+        "/users/{user}/alert-channels/{id}/test": {
+            "post": {
+                "operationId": "testAlertChannel",
+                "description": "Sends now, also to a channel that is off, and answers the result:\n`ok` false with the delivery's `error`.",
+                "summary": "Send a test message to an alert channel of an account",
+                "tags": [
+                    "Alerts"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "; with `dry_run`, the planned steps.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "oneOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "ok": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "error": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "ok",
+                                                        "error"
+                                                    ]
+                                                }
+                                            },
+                                            "required": [
+                                                "data"
+                                            ]
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/DryRun"
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                },
+                "x-arcpanel-permission-set": "v2-alerts"
+            }
+        },
+        "/users/{user}/alert-history": {
+            "get": {
+                "operationId": "listAlertHistory",
+                "description": "Newest first: fired, raised, reminded and resolved alerts and events\nwith their deliveries. Filters: `rule`, `severity`, `since`.",
+                "summary": "List the alert history of an account",
+                "tags": [
+                    "Alerts"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "rule",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "pattern": "^[a-z0-9.-]{1,64}$"
+                        }
+                    },
+                    {
+                        "name": "severity",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "info",
+                                "warning",
+                                "critical"
+                            ]
+                        }
+                    },
+                    {
+                        "name": "since",
+                        "in": "query",
+                        "description": "YYYY-MM-DD or a date and time, server time.",
+                        "schema": {
+                            "type": "string",
+                            "format": "date-time"
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "description": "Page size, from 1 to 1000. Without it the list is complete.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 1000
+                        }
+                    },
+                    {
+                        "name": "offset",
+                        "in": "query",
+                        "description": "Items to skip. Used when `limit` is set; 0 when omitted.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 0
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Array of `AlertHistory`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/AlertHistory"
+                                            }
+                                        },
+                                        "meta": {
+                                            "$ref": "#/components/schemas/ListMeta"
+                                        }
+                                    },
+                                    "required": [
+                                        "data",
+                                        "meta"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                },
+                "x-arcpanel-permission-set": "v2-alerts"
+            }
+        },
+        "/users/{user}/alert-rules": {
+            "get": {
+                "operationId": "listAlertRules",
+                "description": "Every rule type of the catalog that applies to the account, with the\ncatalog default for a rule the account has not changed.",
+                "summary": "List the alert rules of an account",
+                "tags": [
+                    "Alerts"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "description": "Page size, from 1 to 1000. Without it the list is complete.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 1000
+                        }
+                    },
+                    {
+                        "name": "offset",
+                        "in": "query",
+                        "description": "Items to skip. Used when `limit` is set; 0 when omitted.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 0
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Array of `AlertRule`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/AlertRule"
+                                            }
+                                        },
+                                        "meta": {
+                                            "$ref": "#/components/schemas/ListMeta"
+                                        }
+                                    },
+                                    "required": [
+                                        "data",
+                                        "meta"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                },
+                "x-arcpanel-permission-set": "v2-alerts"
+            }
+        },
+        "/users/{user}/alert-rules/{rule}": {
+            "get": {
+                "operationId": "getAlertRule",
+                "summary": "Show an alert rule of an account",
+                "tags": [
+                    "Alerts"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "rule",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "`AlertRule`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/AlertRule"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                },
+                "x-arcpanel-permission-set": "v2-alerts"
+            },
+            "put": {
+                "operationId": "updateAlertRule",
+                "description": "Fields left out keep their value. `warning` and `critical` are the\nthresholds of a metric rule in its `unit`, `for` the minutes the\ncondition must hold, `severity` the lowest severity an event rule\nsends, `cooldown` the minutes between two messages, `channels` the\nchannel ids of the scope and `options` the services or mount points\nto watch. A value the command refuses answers 422 `E_INVALID`.",
+                "summary": "Change an alert rule of an account",
+                "tags": [
+                    "Alerts"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "rule",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateAlertRuleRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "`AlertRule`; with `dry_run`, the planned steps.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "oneOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "$ref": "#/components/schemas/AlertRule"
+                                                }
+                                            },
+                                            "required": [
+                                                "data"
+                                            ]
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/DryRun"
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                },
+                "x-arcpanel-permission-set": "v2-alerts"
+            }
+        },
+        "/users/{user}/alerts": {
+            "get": {
+                "operationId": "listUserAlerts",
+                "summary": "List the open alerts of an account",
+                "tags": [
+                    "Alerts"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "description": "Page size, from 1 to 1000. Without it the list is complete.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 1000
+                        }
+                    },
+                    {
+                        "name": "offset",
+                        "in": "query",
+                        "description": "Items to skip. Used when `limit` is set; 0 when omitted.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 0
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Array of `Alert`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/Alert"
+                                            }
+                                        },
+                                        "meta": {
+                                            "$ref": "#/components/schemas/ListMeta"
+                                        }
+                                    },
+                                    "required": [
+                                        "data",
+                                        "meta"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                },
+                "x-arcpanel-permission-set": "v2-alerts"
             }
         },
         "/users/{user}/app-process-presets": {
@@ -34869,6 +36767,328 @@
                 ],
                 "title": "AdoptPortRuleRequest"
             },
+            "Alert": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "description": "14 digits; the id of its history entries"
+                    },
+                    "rule": {
+                        "type": "string"
+                    },
+                    "title": {
+                        "type": "string"
+                    },
+                    "scope": {
+                        "type": "string",
+                        "description": "`system` or the user of the scope"
+                    },
+                    "object": {
+                        "type": "string",
+                        "description": "what the alert is about: `mount:/home`, `service:nginx`, `web:example.com`, `user:alice`, `system`"
+                    },
+                    "severity": {
+                        "type": "string",
+                        "description": "`warning` or `critical`"
+                    },
+                    "value": {
+                        "type": "string",
+                        "description": "the value against the thresholds, for example `93% (warning 90%, critical 95%)`"
+                    },
+                    "detail": {
+                        "type": "string"
+                    },
+                    "since": {
+                        "type": "string",
+                        "description": "when the condition was first seen, server time"
+                    },
+                    "fired_at": {
+                        "type": "string",
+                        "description": "when the first message went out, server time"
+                    },
+                    "last_notified_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "count": {
+                        "type": "integer",
+                        "description": "messages sent for the alert"
+                    }
+                },
+                "required": [
+                    "id",
+                    "rule",
+                    "title",
+                    "scope",
+                    "object",
+                    "severity",
+                    "value",
+                    "detail",
+                    "since",
+                    "fired_at",
+                    "last_notified_at",
+                    "count"
+                ],
+                "title": "Alert"
+            },
+            "AlertChannel": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "description": "14 digits"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "type": {
+                        "type": "string",
+                        "description": "`email`, `telegram`, `slack`, `discord`, `mattermost` or `panel`"
+                    },
+                    "target": {
+                        "type": "string",
+                        "description": "email: the addresses, comma-separated; telegram: the chat id; else empty"
+                    },
+                    "enabled": {
+                        "type": "boolean"
+                    },
+                    "secret_set": {
+                        "type": "boolean",
+                        "description": "whether a bot token or webhook URL is stored"
+                    },
+                    "error": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "the error of the last delivery, null when it worked"
+                    },
+                    "failures": {
+                        "type": "integer",
+                        "description": "failed deliveries in a row; ten turn the channel off"
+                    },
+                    "last_sent_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "date and time of the last message sent, server time"
+                    }
+                },
+                "required": [
+                    "id",
+                    "name",
+                    "type",
+                    "target",
+                    "enabled",
+                    "secret_set",
+                    "error",
+                    "failures",
+                    "last_sent_at"
+                ],
+                "title": "AlertChannel"
+            },
+            "AlertHistory": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "description": "14 digits"
+                    },
+                    "rule": {
+                        "type": "string"
+                    },
+                    "scope": {
+                        "type": "string",
+                        "description": "`system` or the user of the scope"
+                    },
+                    "object": {
+                        "type": "string"
+                    },
+                    "severity": {
+                        "type": "string",
+                        "description": "`info`, `warning` or `critical`"
+                    },
+                    "state": {
+                        "type": "string",
+                        "description": "`firing` while a metric alert is open, else `resolved`"
+                    },
+                    "value": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "the value, or the job or run id of an event"
+                    },
+                    "message": {
+                        "type": "string"
+                    },
+                    "fired_at": {
+                        "type": "string",
+                        "description": "server time"
+                    },
+                    "resolved_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "count": {
+                        "type": "integer",
+                        "description": "messages sent"
+                    },
+                    "deliveries": {
+                        "type": "array",
+                        "description": "each delivery: `result` is `sent`, `failed`, `dropped` (after the retries), `skipped` or `limited`",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "time": {
+                                    "type": "string"
+                                },
+                                "event": {
+                                    "type": "string"
+                                },
+                                "channel": {
+                                    "type": "string"
+                                },
+                                "name": {
+                                    "type": "string"
+                                },
+                                "type": {
+                                    "type": "string"
+                                },
+                                "result": {
+                                    "type": "string"
+                                },
+                                "error": {
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "time",
+                                "event",
+                                "channel",
+                                "name",
+                                "type",
+                                "result",
+                                "error"
+                            ]
+                        }
+                    }
+                },
+                "required": [
+                    "id",
+                    "rule",
+                    "scope",
+                    "object",
+                    "severity",
+                    "state",
+                    "value",
+                    "message",
+                    "fired_at",
+                    "resolved_at",
+                    "count",
+                    "deliveries"
+                ],
+                "title": "AlertHistory"
+            },
+            "AlertRule": {
+                "type": "object",
+                "properties": {
+                    "rule": {
+                        "type": "string",
+                        "description": "the rule type of the catalog, for example `disk.usage`"
+                    },
+                    "title": {
+                        "type": "string"
+                    },
+                    "kind": {
+                        "type": "string",
+                        "description": "`metric` (thresholds, resolves) or `event`"
+                    },
+                    "enabled": {
+                        "type": "boolean"
+                    },
+                    "warning": {
+                        "description": "the warning threshold of a metric rule",
+                        "type": [
+                            "number",
+                            "null"
+                        ]
+                    },
+                    "critical": {
+                        "description": "the critical threshold, null when the rule has one level",
+                        "type": [
+                            "number",
+                            "null"
+                        ]
+                    },
+                    "unit": {
+                        "type": "string",
+                        "description": "the unit of the thresholds: `%`, `per core`, `days` or empty"
+                    },
+                    "levels": {
+                        "type": "string",
+                        "description": "the thresholds the rule takes: `both`, `warning`, `below` (lower is worse) or `none`"
+                    },
+                    "for": {
+                        "type": "integer",
+                        "description": "minutes the condition must hold before a metric rule fires"
+                    },
+                    "severity": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "the lowest severity an event rule sends: `info`, `warning` or `critical`"
+                    },
+                    "cooldown": {
+                        "type": "integer",
+                        "description": "minutes between two messages of one open alert or event object"
+                    },
+                    "channels": {
+                        "type": "array",
+                        "description": "the channel ids of the scope",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "options": {
+                        "type": "string",
+                        "description": "the services or mount points to watch, comma-separated; empty for all"
+                    },
+                    "interval": {
+                        "type": "integer",
+                        "description": "minutes between two evaluations of a metric rule"
+                    },
+                    "custom": {
+                        "type": "boolean",
+                        "description": "false while the scope uses the catalog default"
+                    }
+                },
+                "required": [
+                    "rule",
+                    "title",
+                    "kind",
+                    "enabled",
+                    "warning",
+                    "critical",
+                    "unit",
+                    "levels",
+                    "for",
+                    "severity",
+                    "cooldown",
+                    "channels",
+                    "options",
+                    "interval",
+                    "custom"
+                ],
+                "title": "AlertRule"
+            },
             "AllocatePortsRequest": {
                 "type": "object",
                 "properties": {
@@ -36517,6 +38737,47 @@
                     "permissions"
                 ],
                 "title": "CreateAccessKeyRequest"
+            },
+            "CreateAlertChannelRequest": {
+                "type": "object",
+                "description": "Body of `createAlertChannel` and `createSystemAlertChannel` (E16 spec §8).",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "pattern": "^[^'\"$`\\\\\\x00-\\x1f]+$",
+                        "maxLength": 64
+                    },
+                    "type": {
+                        "type": "string",
+                        "enum": [
+                            "email",
+                            "telegram",
+                            "slack",
+                            "discord",
+                            "mattermost"
+                        ]
+                    },
+                    "target": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "maxLength": 512
+                    },
+                    "secret": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "The bot token or webhook URL; write-only.",
+                        "maxLength": 4096
+                    }
+                },
+                "required": [
+                    "name",
+                    "type"
+                ],
+                "title": "CreateAlertChannelRequest"
             },
             "CreateFileRequest": {
                 "type": "object",
@@ -45572,6 +47833,102 @@
                     "destination"
                 ],
                 "title": "TransferFilesRequest"
+            },
+            "UpdateAlertChannelRequest": {
+                "type": "object",
+                "description": "Body of `updateAlertChannel` and `updateSystemAlertChannel` (E16 spec §8).",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "pattern": "^[^'\"$`\\\\\\x00-\\x1f]+$",
+                        "maxLength": 64
+                    },
+                    "enabled": {
+                        "type": "boolean"
+                    },
+                    "target": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "maxLength": 512
+                    },
+                    "secret": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "A new bot token or webhook URL; write-only.",
+                        "maxLength": 4096
+                    }
+                },
+                "required": [
+                    "name",
+                    "enabled"
+                ],
+                "title": "UpdateAlertChannelRequest"
+            },
+            "UpdateAlertRuleRequest": {
+                "type": "object",
+                "description": "Body of `updateAlertRule` and `updateSystemAlertRule` (E16 spec §8); fields left out keep their value.",
+                "properties": {
+                    "enabled": {
+                        "type": "boolean"
+                    },
+                    "warning": {
+                        "type": [
+                            "number",
+                            "null"
+                        ],
+                        "description": "The warning threshold.",
+                        "minimum": 0,
+                        "maximum": 999999
+                    },
+                    "critical": {
+                        "type": [
+                            "number",
+                            "null"
+                        ],
+                        "description": "The critical threshold; null for none on a rule with one level.",
+                        "minimum": 0,
+                        "maximum": 999999
+                    },
+                    "for": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 1440
+                    },
+                    "severity": {
+                        "type": "string",
+                        "enum": [
+                            "info",
+                            "warning",
+                            "critical"
+                        ]
+                    },
+                    "cooldown": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 43200
+                    },
+                    "channels": {
+                        "type": "array",
+                        "items": {
+                            "type": "string",
+                            "pattern": "^\\d{14}$"
+                        },
+                        "maxItems": 20
+                    },
+                    "options": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "pattern": "^[A-Za-z0-9_.\\/@,-]*$",
+                        "maxLength": 255
+                    }
+                },
+                "title": "UpdateAlertRuleRequest"
             },
             "UpdateAppProcessRequest": {
                 "type": "object",
