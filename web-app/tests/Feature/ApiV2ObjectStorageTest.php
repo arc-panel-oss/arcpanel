@@ -201,7 +201,7 @@ it('shows and installs the service for administrators only', function () {
 
     $this->postJson('/api/v2/system/object-storage', ['data_path' => '/srv/s3/'], $admin)->assertStatus(202)
         ->assertDocumentedHeaders('installObjectStorage')
-        ->assertHeader('Link', '</api/v2/tasks/sys:20261019120000>; rel="monitor"');
+        ->assertHeader('Link', '</api/v2/tasks/job:20261019120000>; rel="monitor"');
     $this->fake->assertRan('v-change-sys-config-value', fn ($a) => $a === ['SILO_DATA', '/srv/s3']);
     $this->fake->assertRan('v-start-sys-task', fn ($a) => $a === ['plugin', 'silo', 'on']);
     $this->postJson('/api/v2/system/object-storage', ['data_path' => '/srv/../etc'], $admin)->assertStatus(422);

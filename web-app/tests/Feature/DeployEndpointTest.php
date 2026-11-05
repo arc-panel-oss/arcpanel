@@ -78,10 +78,9 @@ beforeEach(function () {
         'ISSUERS' => [DEPLOY_EP_ISSUER, 'https://gitlab.com'], 'AUDIENCE' => DEPLOY_EP_AUD,
     ]);
     $this->fake->on('v-schedule-web-domain-deploy')->returnsJson(['ID' => '17617400001234']);
-    $this->fake->on('v-list-user-tasks', ['bob', '17617400001234', '20', 'json'])->returnsJson([
-        'ID' => '17617400001234', 'KIND' => 'deploy', 'ARGS' => 'shop.example.com archive', 'STATUS' => 'running',
-        'EXIT' => '', 'ERROR' => '', 'QUEUED' => '2026-10-29 14:25:01', 'START' => '2026-10-29 14:25:01', 'END' => '', 'LOG' => '',
-    ]);
+    fakeJobs($this->fake, [jobRecord('17617400001234', ['TYPE' => 'deploy.run', 'OBJECT' => 'deploy:shop.example.com',
+        'ARGS' => 'v-run-web-domain-deploy bob shop.example.com archive', 'STATUS' => 'running', 'EXIT' => '', 'END' => '',
+        'QUEUED' => '2026-10-29 14:25:01', 'START' => '2026-10-29 14:25:01', 'CLASS' => 'deploy', 'RETRYABLE' => 'no'])]);
     Http::fake([
         DEPLOY_EP_ISSUER.'/.well-known/openid-configuration' => Http::response(['issuer' => DEPLOY_EP_ISSUER, 'jwks_uri' => DEPLOY_EP_ISSUER.'/.well-known/jwks']),
         DEPLOY_EP_ISSUER.'/.well-known/jwks' => Http::response(['keys' => [deployEpKey()['jwk']]]),

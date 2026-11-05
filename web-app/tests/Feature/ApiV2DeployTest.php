@@ -135,7 +135,7 @@ it('describes an active pull deploy with typed fields and no secret', function (
             'domain' => 'example.com', 'state' => 'active', 'mode' => 'pull', 'id' => 'k3v9q2m7x1c8',
             'url' => 'git@github.com:acme/shop.git', 'branch' => 'main', 'auth' => 'key', 'preset' => 'laravel',
             'shared' => ['storage/', '.env'], 'keep' => 5, 'webroot' => 'public', 'migrate' => true, 'health_path' => '/up',
-            'current_release' => '20261029-142501', 'running_task' => 'queue:bob:'.API_DEPLOY_TASK, 'pending_task' => null,
+            'current_release' => '20261029-142501', 'running_task' => 'job:'.API_DEPLOY_TASK, 'pending_task' => null,
             'supported' => true, 'reason' => null, 'webhook_url' => 'https://panel.example.com:8088/hooks/k3v9q2m7x1c8', 'upload_url' => null,
             'document_root' => '/home/bob/web/example.com/current/public', 'deploy_port' => 8088, 'port_open' => true,
             'publishers' => [], 'public_key' => null, 'webhook_secret' => null,
@@ -434,9 +434,9 @@ it('starts a deploy and answers 202 with the task', function () {
     $this->fake->assertNotRan('v-schedule-web-domain-deploy');
 
     $this->postJson(API_DEPLOY.'/runs', [], $headers)->assertStatus(202)
-        ->assertHeader('Link', '</api/v2/tasks/queue:bob:'.API_DEPLOY_TASK.'>; rel="monitor"')
+        ->assertHeader('Link', '</api/v2/tasks/job:'.API_DEPLOY_TASK.'>; rel="monitor"')
         ->assertHeaderMissing('Location')
-        ->assertJsonPath('data.id', 'queue:bob:'.API_DEPLOY_TASK)
+        ->assertJsonPath('data.id', 'job:'.API_DEPLOY_TASK)
         ->assertJsonPath('data.kind', 'deploy')
         ->assertJsonPath('data.status', 'queued')
         ->assertJsonPath('data.args', 'example.com pull main')
@@ -478,7 +478,7 @@ it('lists the releases newest first', function (string $principal, string $role,
         $response->assertJsonPath('meta.total', 2)
             ->assertJsonPath('data.0', [
                 'id' => '20261029-142501', 'source' => 'pull', 'commit' => 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678', 'ref' => 'refs/heads/main',
-                'created_at' => '2026-10-29T14:25:01Z', 'task' => 'queue:bob:17617400001234', 'current' => true,
+                'created_at' => '2026-10-29T14:25:01Z', 'task' => 'job:17617400001234', 'current' => true,
             ])
             ->assertJsonPath('data.1.commit', null)
             ->assertJsonPath('data.1.task', null)
@@ -511,7 +511,7 @@ it('rolls back to a release and answers 202 with the task', function () {
     $this->fake->assertNotRan('v-rollback-web-domain-deploy');
 
     $this->postJson($rollback, [], $headers)->assertStatus(202)
-        ->assertHeader('Link', '</api/v2/tasks/queue:bob:'.API_DEPLOY_TASK.'>; rel="monitor"')
+        ->assertHeader('Link', '</api/v2/tasks/job:'.API_DEPLOY_TASK.'>; rel="monitor"')
         ->assertJsonPath('data.kind', 'deploy')
         ->assertJsonPath('data.args', 'example.com rollback 20261028-091744')
         ->assertJsonPath('data.resource', '/users/bob/web-domains/example.com/deploy');

@@ -92,7 +92,7 @@ it('installs and removes a version as the system task with a key holding only v2
 
     $this->getJson('/api/v2/system/php/versions/8.4', $headers)->assertOk()->assertJsonPath('data.status', 'active');
     $this->postJson('/api/v2/system/php/versions/8.5', [], $headers)->assertStatus(202)->assertDocumentedHeaders('installPhpVersion')
-        ->assertHeader('Link', '</api/v2/tasks/sys:'.PHP_TASK.'>; rel="monitor"')
+        ->assertHeader('Link', '</api/v2/tasks/job:'.PHP_TASK.'>; rel="monitor"')
         ->assertJsonPath('data.kind', 'php');
     $this->fake->assertRan('v-start-sys-task', fn ($a) => $a === ['php', '8.5', '-']);
     $this->deleteJson('/api/v2/system/php/versions/8.2', [], $headers)->assertStatus(202)->assertDocumentedHeaders('removePhpVersion');

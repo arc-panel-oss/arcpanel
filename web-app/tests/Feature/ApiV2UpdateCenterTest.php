@@ -125,8 +125,8 @@ it('starts the update to a release as the system task with the key as actor', fu
     $headers = apiAs($this->fake, 'arcadmin', 'admin', area: 'server');
 
     $this->postJson('/api/v2/system/updates', ['version' => '2.5.1'], $headers)->assertStatus(202)->assertDocumentedHeaders('runUpdates')
-        ->assertHeader('Link', '</api/v2/tasks/sys:'.UPDATE_CENTER_TASK.'>; rel="monitor"')
-        ->assertJsonPath('data.id', 'sys:'.UPDATE_CENTER_TASK)
+        ->assertHeader('Link', '</api/v2/tasks/job:'.UPDATE_CENTER_TASK.'>; rel="monitor"')
+        ->assertJsonPath('data.id', 'job:'.UPDATE_CENTER_TASK)
         ->assertJsonPath('data.kind', 'arcpanel-release')
         ->assertJsonPath('data.args', '2.5.1 api '.API_KEY_ID);
     $this->fake->assertRan('v-start-sys-task', fn ($a) => $a === ['arcpanel-release', '2.5.1', 'api', API_KEY_ID]);
@@ -245,7 +245,7 @@ it('lists the update history newest first, paginated', function () {
 it('starts the rollback of an update as the system task', function () {
     $this->postJson('/api/v2/system/updates/history/3/rollback', [], apiAs($this->fake, 'arcadmin', 'admin', area: 'server'))
         ->assertStatus(202)->assertDocumentedHeaders('rollbackPanelUpdate')
-        ->assertHeader('Link', '</api/v2/tasks/sys:'.UPDATE_CENTER_TASK.'>; rel="monitor"')
+        ->assertHeader('Link', '</api/v2/tasks/job:'.UPDATE_CENTER_TASK.'>; rel="monitor"')
         ->assertJsonPath('data.kind', 'arcpanel-rollback')
         ->assertJsonPath('data.args', '3');
     $this->fake->assertRan('v-start-sys-task', fn ($a) => $a === ['arcpanel-rollback', '3'], 1);

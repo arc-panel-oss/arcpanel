@@ -9824,7 +9824,7 @@
         "/system/tasks": {
             "get": {
                 "operationId": "listSystemTasks",
-                "description": "The current system task and Docker engine task.",
+                "description": "The jobs of the server (system tasks, the Docker engine, backup job\nruns), newest first.",
                 "summary": "List the system tasks",
                 "tags": [
                     "Tasks"
@@ -10692,9 +10692,149 @@
                 "x-arcpanel-permission-set": "v2-server"
             }
         },
+        "/tasks": {
+            "get": {
+                "operationId": "listTasks",
+                "description": "The jobs the key can see, newest first: the jobs of the users in its\nowner scope and, for an administrator, the jobs of the server. Filters\n`status`, `type` (a type or `prefix.*`), `user` and `since` (a time,\nagainst `queued_at`). Paged with `limit` and `offset` (D20). The list\nmay lag the jobs by a few seconds; `GET /tasks/{id}` is always current.",
+                "summary": "List tasks",
+                "tags": [
+                    "Tasks"
+                ],
+                "parameters": [
+                    {
+                        "name": "status",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "queued",
+                                "running",
+                                "succeeded",
+                                "failed",
+                                "cancelled"
+                            ]
+                        }
+                    },
+                    {
+                        "name": "type",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "pattern": "^[a-z0-9-]+(\\.[a-z0-9-]+)*(\\.\\*)?$",
+                            "maxLength": 64
+                        }
+                    },
+                    {
+                        "name": "user",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "pattern": "^[A-Za-z0-9._-]+$",
+                            "maxLength": 64
+                        }
+                    },
+                    {
+                        "name": "since",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "format": "date-time"
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 1000
+                        }
+                    },
+                    {
+                        "name": "offset",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 0
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "description": "Page size, from 1 to 1000. Without it the list is complete.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 1000
+                        }
+                    },
+                    {
+                        "name": "offset",
+                        "in": "query",
+                        "description": "Items to skip. Used when `limit` is set; 0 when omitted.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 0
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Array of `Task`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/Task"
+                                            }
+                                        },
+                                        "meta": {
+                                            "$ref": "#/components/schemas/ListMeta"
+                                        }
+                                    },
+                                    "required": [
+                                        "data",
+                                        "meta"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                },
+                "x-arcpanel-permission-set": "v2-backup"
+            }
+        },
         "/tasks/{id}": {
             "get": {
                 "operationId": "getTask",
+                "description": "`id` is `job:ID` or an id of the task sources before E15 (`sys:ID`,\n`queue:USER:ID`, `docker:USER:APP:ID`, …), which resolves to the job\nwith the same 14 digits. A job older than the retention answers 404.",
                 "summary": "Show a task",
                 "tags": [
                     "Tasks"
@@ -10765,6 +10905,212 @@
                     },
                     "500": {
                         "$ref": "#/components/responses/ServerError"
+                    }
+                },
+                "x-arcpanel-permission-set": "v2-backup"
+            }
+        },
+        "/tasks/{id}/cancel": {
+            "post": {
+                "operationId": "cancelTask",
+                "description": "A queued job is cancelled at once; a running one is stopped (its unit,\nKILL after 10 seconds). 409 `E_INVALID` when it has finished.",
+                "summary": "Cancel a task",
+                "tags": [
+                    "Tasks"
+                ],
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "With `dry_run`: the planned steps; nothing ran.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DryRun"
+                                }
+                            }
+                        }
+                    },
+                    "202": {
+                        "description": "`Task`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/Task"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            },
+                            "Link": {
+                                "$ref": "#/components/headers/Link"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                },
+                "x-arcpanel-permission-set": "v2-backup"
+            }
+        },
+        "/tasks/{id}/retry": {
+            "post": {
+                "operationId": "retryTask",
+                "description": "A failed or cancelled job of a retryable type runs again as a new job\nwith the same command (`retry_of` names this one). 409 when the type\ncannot be retried, the job has not finished, or a job of the same\nobject is queued or running.",
+                "summary": "Retry a task",
+                "tags": [
+                    "Tasks"
+                ],
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "With `dry_run`: the planned steps; nothing ran.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DryRun"
+                                }
+                            }
+                        }
+                    },
+                    "202": {
+                        "description": "`Task`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/Task"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            },
+                            "Link": {
+                                "$ref": "#/components/headers/Link"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
                     }
                 },
                 "x-arcpanel-permission-set": "v2-backup"
@@ -31201,7 +31547,7 @@
         "/users/{user}/tasks": {
             "get": {
                 "operationId": "listUserTasks",
-                "description": "Node.js, Quick Install, Docker apps and queue tasks of the last seven\ndays, newest first. Paged with `limit` and `offset` (D20).",
+                "description": "The jobs of the user, newest first. Paged with `limit` and `offset`\n(D20).",
                 "summary": "List the tasks of a user",
                 "tags": [
                     "Tasks"
@@ -45086,7 +45432,8 @@
                 "type": "object",
                 "properties": {
                     "id": {
-                        "type": "string"
+                        "type": "string",
+                        "description": "`job:ID` (E15)"
                     },
                     "kind": {
                         "type": "string"
@@ -45098,7 +45445,8 @@
                             "queued",
                             "running",
                             "succeeded",
-                            "failed"
+                            "failed",
+                            "cancelled"
                         ]
                     },
                     "exit_code": {
@@ -45149,6 +45497,27 @@
                             "null"
                         ],
                         "description": "path under /api/v2 for the related resource"
+                    },
+                    "object": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "what the job acts on, as `web:example.com` or `docker:alice:shop` (E15)"
+                    },
+                    "actor": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "who started the job: a login, `api:<key id>`, `cli`, `cron` (E15)"
+                    },
+                    "retry_of": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "the task this one retries (E15)"
                     }
                 },
                 "required": [

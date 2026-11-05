@@ -513,7 +513,7 @@ it('queues a Let’s Encrypt certificate and answers 202 with the domain to poll
     $this->postJson('/api/v2/users/bob/web-domains/shop.example/letsencrypt', [], $headers)
         ->assertStatus(202)->assertDocumentedHeaders('requestWebDomainLetsEncrypt')
         ->assertHeader('Location', 'http://localhost/api/v2/users/bob/web-domains/shop.example')
-        ->assertHeader('Link', '</api/v2/tasks/queue:bob:17290000001234>; rel="monitor"')
+        ->assertHeader('Link', '</api/v2/tasks/job:17290000001234>; rel="monitor"')
         ->assertJsonPath('data.ssl.letsencrypt', false);
     $this->fake->assertRan('v-schedule-letsencrypt-domain', fn ($a) => $a === ['bob', 'shop.example', 'www.shop.example', 'ecdsa-256']);
 

@@ -273,12 +273,11 @@ it('reports a refused command on the tab', function () {
 // Logs and live state
 
 it('answers the log of a deploy task of the domain only', function () {
-    $this->fake->on('v-list-user-tasks', ['bob', '17617400001234', '400', 'json'])->returnsJson([
-        'ID' => '17617400001234', 'KIND' => 'deploy', 'ARGS' => 'example.com pull main', 'STATUS' => 'succeeded', 'EXIT' => '0', 'ERROR' => '',
-        'QUEUED' => '2026-10-29 14:24:58', 'START' => '2026-10-29 14:24:58', 'END' => '2026-10-29 14:26:10', 'LOG' => "2026-10-29 14:24:58 fetching main\n2026-10-29 14:26:10 release 20261029-142501 is live\n",
-    ]);
-    $this->fake->on('v-list-user-tasks', ['bob', '17617400002222', '400', 'json'])->returnsJson([
-        'ID' => '17617400002222', 'KIND' => 'backup', 'ARGS' => 'bob', 'STATUS' => 'succeeded', 'EXIT' => '0', 'ERROR' => '', 'QUEUED' => '', 'START' => '', 'END' => '', 'LOG' => 'x',
+    fakeJobs($this->fake, [
+        jobRecord('17617400001234', ['TYPE' => 'deploy.run', 'OBJECT' => 'deploy:example.com', 'ARGS' => 'v-run-web-domain-deploy bob example.com pull main',
+            'QUEUED' => '2026-10-29 14:24:58', 'START' => '2026-10-29 14:24:58', 'END' => '2026-10-29 14:26:10', 'CLASS' => 'deploy', 'RETRYABLE' => 'no',
+            'LOG' => "2026-10-29 14:24:58 fetching main\n2026-10-29 14:26:10 release 20261029-142501 is live\n"]),
+        jobRecord('17617400002222', ['LOG' => 'x']),
     ]);
     signIn('bob', 'user');
 
@@ -290,10 +289,10 @@ it('answers the log of a deploy task of the domain only', function () {
 it('answers the running deploy with its log, for the live view', function () {
     $this->fake->on('v-list-web-domain-deploy')->returnsJson(['example.com' => deployActive(['RUNNING' => '17617400007777'])]);
     $this->fake->on('v-list-web-domain-deploys')->returnsJson(deployHistory());
-    $this->fake->on('v-list-user-tasks', ['bob', '17617400007777', '400', 'json'])->returnsJson([
-        'ID' => '17617400007777', 'KIND' => 'deploy', 'ARGS' => 'example.com pull main', 'STATUS' => 'running', 'EXIT' => '', 'ERROR' => '',
-        'QUEUED' => '2026-10-29 14:51:02', 'START' => '2026-10-29 14:51:02', 'END' => '', 'LOG' => "2026-10-29 14:51:02 fetching main\n",
-    ]);
+    fakeJobs($this->fake, [jobRecord('17617400007777', ['TYPE' => 'deploy.run', 'OBJECT' => 'deploy:example.com',
+        'ARGS' => 'v-run-web-domain-deploy bob example.com pull main', 'STATUS' => 'running', 'EXIT' => '', 'END' => '',
+        'QUEUED' => '2026-10-29 14:51:02', 'START' => '2026-10-29 14:51:02', 'CLASS' => 'deploy', 'RETRYABLE' => 'no',
+        'LOG' => "2026-10-29 14:51:02 fetching main\n"])]);
     signIn('bob', 'user');
 
     $this->getJson(DEPLOY_BASE.'/state')->assertOk()->assertJsonPath('running', true)->assertJsonPath('lines.0', '2026-10-29 14:51:02 fetching main');

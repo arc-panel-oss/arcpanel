@@ -126,10 +126,15 @@ final class DeployEndpointController extends Controller
         }
 
         try {
-            $view = $tasks->get(TaskId::queue($deploy['USER'], $task), 20)->toArray();
+            // E15: the deploy is a deploy.* job of the domain
+            $job = $tasks->get(TaskId::job($task), 20);
         } catch (Throwable) {
             return response()->json(['error' => 'not found'], 404);
         }
+        if ($job->user !== $deploy['USER'] || $job->object !== 'deploy:'.$deploy['DOMAIN']) {
+            return response()->json(['error' => 'not found'], 404);
+        }
+        $view = $job->toArray();
 
         return response()->json([
             'task' => $task,

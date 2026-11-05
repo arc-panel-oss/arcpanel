@@ -6,7 +6,9 @@ use App\Services\Tasks\TaskMapper;
 // Task id parser (D31) and source mappings (E34 batch 3 spec §5).
 
 it('parses task ids including dotted usernames in the middle segment', function () {
-    expect(TaskId::parse('sys:17280000000001')?->apiId())->toBe('sys:17280000000001')
+    // E15: every id answers as the job with the same 14 digits
+    expect(TaskId::parse('sys:17280000000001')?->apiId())->toBe('job:17280000000001')
+        ->and(TaskId::parse('job:17280000000001')?->apiId())->toBe('job:17280000000001')
         ->and(TaskId::parse('docker:bob:kuma:17280000000009')?->app)->toBe('kuma')
         ->and(TaskId::parse('node:host.co:17280000000042')?->user)->toBe('host.co')
         ->and(TaskId::parse('queue:bob:17280000004001')?->recordId)->toBe('17280000004001')
@@ -23,7 +25,9 @@ it('maps CLI statuses to API statuses without inventing values', function () {
         ->and(TaskMapper::mapStatus('running'))->toBe('running')
         ->and(TaskMapper::mapStatus('done'))->toBe('succeeded')
         ->and(TaskMapper::mapStatus('succeeded'))->toBe('succeeded')
-        ->and(TaskMapper::mapStatus('failed'))->toBe('failed');
+        ->and(TaskMapper::mapStatus('failed'))->toBe('failed')
+        ->and(TaskMapper::mapStatus('partial'))->toBe('failed')
+        ->and(TaskMapper::mapStatus('cancelled'))->toBe('cancelled');
 
     expect(fn () => TaskMapper::mapStatus(''))->toThrow(InvalidArgumentException::class)
         ->and(fn () => TaskMapper::mapStatus('unknown'))->toThrow(InvalidArgumentException::class);

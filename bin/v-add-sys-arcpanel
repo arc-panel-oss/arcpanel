@@ -152,6 +152,18 @@ if [ "$PANEL_PHP_CHANGED" = yes ]; then
 	panel_php_reload
 fi
 
+# The panel's database (E15 spec §6.1): data/arcpanel/arcpanel.sqlite of the
+# web user, an index of the job files that is never backed up and is rebuilt
+# from them (arcpanel:jobs-sync --full)
+mkdir -p "$ARCPANEL/data/arcpanel"
+chown "$WEB_USER:$WEB_USER" "$ARCPANEL/data/arcpanel"
+chmod 750 "$ARCPANEL/data/arcpanel"
+if [ ! -f "$ARCPANEL/data/arcpanel/arcpanel.sqlite" ]; then
+	install -o "$WEB_USER" -g "$WEB_USER" -m 640 /dev/null "$ARCPANEL/data/arcpanel/arcpanel.sqlite"
+fi
+runuser -u "$WEB_USER" -- "$PHP_BIN" "$APP_DIR/artisan" migrate --force --no-interaction > /dev/null 2>&1
+check_result $? "panel app database migration failed"
+
 # Framework caches, built as the web user. Routes are cached since the panel
 # app serves the root URL (2.0, E8); under the /app prefix of 1.x a route
 # cache lost the base URL.

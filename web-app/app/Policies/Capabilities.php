@@ -178,8 +178,9 @@ final class Capabilities
         // Quick Install on a web domain (E7 batch 2 spec §10)
         'web.apps.install' => self::ALL_ROLES,
 
-        // REST API v2 task reads (E34 batch 3 spec D33)
+        // REST API v2 task reads (E34 batch 3 spec D33) and the Job Center (E15 spec §6.3)
         'tasks.view' => self::ALL_ROLES,
+        'tasks.manage' => self::ALL_ROLES,
 
         // Server pages of E7 batch 3 (spec §5.1)
         'server.services' => self::ADMIN,

@@ -459,7 +459,7 @@ it('documents the task states, the retry limit, renewals and the keep-the-value 
     $operations = apiV2Operations();
     $text = fn (string $id): string => (string) preg_replace('/\s+/', ' ', (string) ($operations[$id]['operation']['description'] ?? ''));
 
-    expect($spec['components']['schemas']['Task']['properties']['status']['enum'] ?? null)->toBe(['queued', 'running', 'succeeded', 'failed'])
+    expect($spec['components']['schemas']['Task']['properties']['status']['enum'] ?? null)->toBe(['queued', 'running', 'succeeded', 'failed', 'cancelled'])
         ->and($spec['components']['schemas']['BackupRun']['properties']['trigger']['enum'] ?? null)->toBe(['schedule', 'request', 'cli'])
         ->and($spec['info']['description'])->toContain('**Asynchronous operations.**', 'QUEUE_MAX_ATTEMPTS', 'x-arcpanel-permission-set');
     foreach (['requestWebDomainLetsEncrypt', 'requestMailDomainLetsEncrypt'] as $id) {

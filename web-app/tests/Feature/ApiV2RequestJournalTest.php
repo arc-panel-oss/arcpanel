@@ -98,7 +98,7 @@ it('records the task of a 202 answer', function () {
     $response = $this->postJson('/api/v2/users/bob/backups', [], apiAs($this->fake, 'bob', 'user', area: 'backup'))->assertStatus(202)->assertDocumentedHeaders('createBackup');
 
     expect(journalLines()[1])->toMatchArray([
-        'status' => 202, 'error_code' => null, 'task_id' => 'queue:bob:17290000009001', 'location' => $response->headers->get('Location'),
+        'status' => 202, 'error_code' => null, 'task_id' => 'job:17290000009001', 'location' => $response->headers->get('Location'),
     ])->and(journalLines()[0]['operation'])->toBe('createBackup');
 });
 

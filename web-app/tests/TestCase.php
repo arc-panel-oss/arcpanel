@@ -3,11 +3,15 @@
 namespace Tests;
 
 use App\Audit\AuditWriterFake;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
 use Illuminate\Support\Facades\File;
 
 abstract class TestCase extends BaseTestCase
 {
+    // The panel database (E15) is an in-memory SQLite database per test
+    use RefreshDatabase;
+
     private string $requestJournal = '';
 
     protected function setUp(): void

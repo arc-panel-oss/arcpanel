@@ -190,7 +190,7 @@ it('queues a mail Lets Encrypt certificate and removes a relay only when one exi
     $this->postJson('/api/v2/users/bob/mail-domains/example.com/letsencrypt', ['key_algorithm' => 'rsa'], $headers)
         ->assertStatus(202)->assertDocumentedHeaders('requestMailDomainLetsEncrypt')
         ->assertHeader('Location', 'http://localhost/api/v2/users/bob/mail-domains/example.com')
-        ->assertHeader('Link', '</api/v2/tasks/queue:bob:17290000009999>; rel="monitor"');
+        ->assertHeader('Link', '</api/v2/tasks/job:17290000009999>; rel="monitor"');
     $this->fake->assertRan('v-schedule-letsencrypt-domain', fn ($a) => $a === ['bob', 'example.com', '', 'rsa', 'yes']);
 
     $this->deleteJson('/api/v2/users/bob/mail-domains/example.com/smtp-relay', [], $headers)->assertNoContent();

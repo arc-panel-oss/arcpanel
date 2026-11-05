@@ -59,8 +59,8 @@ it('starts a version install with Link and refuses a busy slot', function () {
     $headers = apiAs($this->fake, 'bob', 'user', area: 'apps');
 
     $this->postJson('/api/v2/users/bob/node/versions', ['spec' => '24'], $headers)->assertStatus(202)->assertDocumentedHeaders('installNodeVersion')
-        ->assertHeader('Link', '</api/v2/tasks/node:bob:17286400001234>; rel="monitor"')
-        ->assertJsonPath('data.id', 'node:bob:17286400001234')
+        ->assertHeader('Link', '</api/v2/tasks/job:17286400001234>; rel="monitor"')
+        ->assertJsonPath('data.id', 'job:17286400001234')
         ->assertJsonPath('data.status', 'running');
     $this->fake->assertRan('v-start-user-node-task', fn ($a) => $a === ['bob', 'add-version', '24']);
 
@@ -70,7 +70,7 @@ it('starts a version install with Link and refuses a busy slot', function () {
     ]));
     $this->postJson('/api/v2/users/bob/node/versions', ['spec' => '22'], $headers)->assertStatus(409)
         ->assertJsonPath('error.code', 'E_INUSE')
-        ->assertJsonPath('error.existing', '/api/v2/tasks/node:bob:99');
+        ->assertJsonPath('error.existing', '/api/v2/tasks/job:99');
 });
 
 it('plans without running and refuses a v2-read key before any command', function () {
@@ -118,7 +118,7 @@ it('queues package update and check tasks', function () {
     $headers = apiAs($this->fake, 'bob', 'user', area: 'apps');
 
     $this->postJson('/api/v2/users/bob/node/versions/24.21.0/packages/update', [], $headers)->assertStatus(202)->assertDocumentedHeaders('updateNodePackages')
-        ->assertHeader('Link', '</api/v2/tasks/node:bob:55>; rel="monitor"');
+        ->assertHeader('Link', '</api/v2/tasks/job:55>; rel="monitor"');
     $this->fake->assertRan('v-start-user-node-task', fn ($a) => $a === ['bob', 'update-packages', '24.21.0']);
 
     $this->postJson('/api/v2/users/bob/node/versions/24.21.0/packages/check', [], $headers)->assertStatus(202)->assertDocumentedHeaders('checkNodePackages');

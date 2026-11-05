@@ -55,8 +55,8 @@ it('starts install with Link and refuses a busy slot', function () {
     $headers = apiAs($this->fake, 'bob', 'user', area: 'apps');
 
     $this->postJson('/api/v2/users/bob/node-apps/api.bob.example/install', [], $headers)->assertStatus(202)->assertDocumentedHeaders('installNodeApp')
-        ->assertHeader('Link', '</api/v2/tasks/node:bob:88>; rel="monitor"')
-        ->assertJsonPath('data.id', 'node:bob:88');
+        ->assertHeader('Link', '</api/v2/tasks/job:88>; rel="monitor"')
+        ->assertJsonPath('data.id', 'job:88');
     $this->fake->assertRan('v-start-user-node-task', fn ($a) => $a === ['bob', 'app-install', 'api.bob.example']);
 
     $this->fake->on('v-start-user-node-task')->returnsExit(ExitCode::InUse, 'Error: Another Node.js task is running for bob');
@@ -65,7 +65,7 @@ it('starts install with Link and refuses a busy slot', function () {
     ]));
     $this->postJson('/api/v2/users/bob/node-apps/api.bob.example/build', ['script' => 'build'], $headers)->assertStatus(409)
         ->assertJsonPath('error.code', 'E_INUSE')
-        ->assertJsonPath('error.existing', '/api/v2/tasks/node:bob:77');
+        ->assertJsonPath('error.existing', '/api/v2/tasks/job:77');
 });
 
 it('starts a build with Link only (Fleet PD4)', function () {
@@ -73,7 +73,7 @@ it('starts a build with Link only (Fleet PD4)', function () {
 
     $this->postJson('/api/v2/users/bob/node-apps/api.bob.example/build', ['script' => 'build'], apiAs($this->fake, 'bob', 'user', area: 'apps'))
         ->assertStatus(202)->assertDocumentedHeaders('buildNodeApp')
-        ->assertHeader('Link', '</api/v2/tasks/node:bob:89>; rel="monitor"');
+        ->assertHeader('Link', '</api/v2/tasks/job:89>; rel="monitor"');
 });
 
 it('plans without running and refuses a v2-read key before any command', function () {

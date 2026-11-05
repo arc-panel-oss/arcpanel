@@ -22,6 +22,9 @@ final class RouteActions
         'db.download' => 'db.dump',
         'api.v2.databases.dump' => 'db.dump',
         'api.v2.files.download' => 'files.download',
+        // Cancel and retry of a job (E15 spec §7.3)
+        'api.v2.tasks.cancel' => 'job.cancel',
+        'api.v2.tasks.retry' => 'job.retry',
         // Sensitive reads (D4)
         'backups.archives.download' => 'backups.download',
         'api.v2.backups.download' => 'backups.download',

@@ -78,6 +78,9 @@ final class ObjectMap
         'php.version' => 'php_version',
         's3-keys.key' => 'storage_key',
         'secrets.name' => 'secret',
+        // Jobs (E15 spec §7.3): the task id of API v2, the job ID of the pages
+        'tasks.id' => 'job',
+        'jobs.id' => 'job',
         'shell.id' => 'notification',
         'settings.type' => 'database_type',
         'ssh-keys.id' => 'ssh_key',

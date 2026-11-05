@@ -40,8 +40,8 @@ it('installs with Link and refuses a busy slot', function () {
     $headers = apiAs($this->fake, 'arcadmin', 'admin', area: 'server');
 
     $this->postJson('/api/v2/system/docker/install', [], $headers)->assertStatus(202)->assertDocumentedHeaders('installDockerEngine')
-        ->assertHeader('Link', '</api/v2/tasks/docker-engine:88>; rel="monitor"')
-        ->assertJsonPath('data.id', 'docker-engine:88')
+        ->assertHeader('Link', '</api/v2/tasks/job:88>; rel="monitor"')
+        ->assertJsonPath('data.id', 'job:88')
         ->assertJsonPath('data.status', 'running');
     $this->fake->assertRan('v-start-sys-docker-task', fn ($a) => $a === []);
 
@@ -51,7 +51,7 @@ it('installs with Link and refuses a busy slot', function () {
     ]));
     $this->postJson('/api/v2/system/docker/install', [], $headers)->assertStatus(409)
         ->assertJsonPath('error.code', 'E_INUSE')
-        ->assertJsonPath('error.existing', '/api/v2/tasks/docker-engine:77');
+        ->assertJsonPath('error.existing', '/api/v2/tasks/job:77');
 });
 
 it('plans without running and refuses a v2-read key before any command', function () {

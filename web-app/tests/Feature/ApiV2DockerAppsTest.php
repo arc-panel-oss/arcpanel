@@ -55,9 +55,9 @@ it('installs with Link, Location and refuses a busy slot', function () {
     $this->fake->on('v-add-docker-app')->returns("88\n");
 
     $this->postJson('/api/v2/users/bob/docker-apps', ['slug' => 'uptime-kuma', 'name' => 'shop'], apiAs($this->fake, 'bob', 'user', area: 'apps'))->assertStatus(202)->assertDocumentedHeaders('createDockerApp')
-        ->assertHeader('Link', '</api/v2/tasks/docker:bob:shop:88>; rel="monitor"')
+        ->assertHeader('Link', '</api/v2/tasks/job:88>; rel="monitor"')
         ->assertHeader('Location', url('/api/v2/users/bob/docker-apps/shop'))
-        ->assertJsonPath('data.id', 'docker:bob:shop:88');
+        ->assertJsonPath('data.id', 'job:88');
 
     $this->fake->on('v-start-docker-app-task')->returnsExit(ExitCode::InUse, 'Error: A task is already running');
     $this->fake->on('v-list-docker-app-task', ['bob', 'kuma', '0', 'json'])->returnsJson(dockerTask([
@@ -65,7 +65,7 @@ it('installs with Link, Location and refuses a busy slot', function () {
     ]));
     $this->postJson('/api/v2/users/bob/docker-apps/kuma/tasks', ['action' => 'update'], apiAs($this->fake, 'bob', 'user', area: 'apps'))->assertStatus(409)
         ->assertJsonPath('error.code', 'E_INUSE')
-        ->assertJsonPath('error.existing', '/api/v2/tasks/docker:bob:kuma:77');
+        ->assertJsonPath('error.existing', '/api/v2/tasks/job:77');
 });
 
 it('starts a task with Link only (Fleet PD4)', function () {
@@ -73,7 +73,7 @@ it('starts a task with Link only (Fleet PD4)', function () {
 
     $this->postJson('/api/v2/users/bob/docker-apps/kuma/tasks', ['action' => 'update'], apiAs($this->fake, 'bob', 'user', area: 'apps'))
         ->assertStatus(202)->assertDocumentedHeaders('startDockerAppTask')
-        ->assertHeader('Link', '</api/v2/tasks/docker:bob:kuma:91>; rel="monitor"');
+        ->assertHeader('Link', '</api/v2/tasks/job:91>; rel="monitor"');
 });
 
 it('plans without running and refuses a v2-read key before any command', function () {

@@ -7,93 +7,159 @@ use App\Api\ErrorCode;
 use App\Api\TaskId;
 use App\Arc\ArcCommand;
 use App\Arc\ArcCommandException;
-use App\Arc\ExitCode;
 use App\Arc\Options;
 use App\Arc\SysConfig;
+use App\Services\Jobs\JobIndex;
+use App\Services\Jobs\JobIndexUnavailable;
+use App\Services\Jobs\JobStore;
+use App\Services\Jobs\JobStoreException;
+use Illuminate\Database\Query\Builder;
 
 /**
- * Reads the task sources of the panel (E34 batch 3 spec §5; the app process
- * task since Fleet PD4).
+ * The tasks of API v2 (E34 batch 3 spec §5), since E15 the jobs of the Job
+ * Center (docs/features/specs/2026-11-05-001-e15-job-center-design.md §7):
+ * one task is read from its job file with `v-list-job`, lists come from the
+ * job index (jobs_log).
  */
 final class TaskService
 {
     public function __construct(
         private readonly ArcCommand $arc,
         private readonly SysConfig $config,
+        private readonly JobStore $store,
+        private readonly JobIndex $index,
     ) {}
 
+    /**
+     * The task of ID with the last LINES lines of its log. 404 when the job
+     * does not exist (any more) or does not belong to the id's source.
+     */
     public function get(TaskId $id, int $lines): TaskView
     {
-        return match ($id->source) {
-            TaskId::SOURCE_SYS => $this->getSys($id, $lines),
-            TaskId::SOURCE_DOCKER_ENGINE => $this->getDockerEngine($id, $lines),
-            TaskId::SOURCE_NODE => $this->getNode($id, $lines),
-            TaskId::SOURCE_DOCKER => $this->getDockerApp($id, $lines),
-            TaskId::SOURCE_INSTALL => $this->getInstall($id, $lines),
-            TaskId::SOURCE_QUEUE => $this->getQueue($id, $lines),
-            TaskId::SOURCE_MALWARE => $this->getMalware($id, $lines),
-            TaskId::SOURCE_APP_PROCESS => $this->getAppProcess($id, $lines),
-        };
+        $view = $this->find($id, $lines);
+        if ($view === null) {
+            throw new ApiException(ErrorCode::NotExist, 'Not found.', 404);
+        }
+
+        return $view;
     }
 
-    /** @return list<TaskView> */
-    public function listForUser(string $user, int $lines): array
+    /** The task of ID, or null when there is none (callers answer 404). */
+    public function find(TaskId $id, int $lines): ?TaskView
     {
-        $tasks = [];
-        $node = $this->readJson('v-list-user-node-task', [$user, (string) $lines]);
-        if ((string) ($node['ID'] ?? '') !== '') {
-            $tasks[] = $this->mapRow(new TaskId(TaskId::SOURCE_NODE, (string) $node['ID'], $user), $node, $lines);
+        try {
+            $job = $this->store->findWithTail($id->jobId(), $lines);
+        } catch (JobStoreException) {
+            throw new ApiException(ErrorCode::Server, 'The task could not be read.', 500);
         }
-
-        $install = $this->readJson('v-list-user-quick-install-task', [$user, (string) $lines]);
-        if ((string) ($install['ID'] ?? '') !== '') {
-            $tasks[] = $this->mapRow(new TaskId(TaskId::SOURCE_INSTALL, (string) $install['ID'], $user), $install, $lines);
+        if ($job === null || ! $id->matches($job)) {
+            return null;
         }
-
-        $malware = $this->readJson('v-list-user-malware-task', [$user, (string) $lines]);
-        if ((string) ($malware['ID'] ?? '') !== '') {
-            $tasks[] = $this->mapRow(new TaskId(TaskId::SOURCE_MALWARE, (string) $malware['ID'], $user), $malware, $lines);
+        // A finished engine install changes DOCKER_SYSTEM, as on the page (E4 spec §4.4)
+        if (($job['TYPE'] ?? '') === 'docker.engine' && ($job['STATUS'] ?? '') === 'succeeded') {
+            $this->config->forget();
         }
-
-        foreach ($this->dockerApps($user) as $app) {
-            $name = (string) ($app['NAME'] ?? '');
-            if ($name === '') {
-                continue;
-            }
-            $row = $this->readDockerTask('v-list-docker-app-task', [$user, $name], 1);
-            if ((string) ($row['ID'] ?? '') !== '') {
-                $tasks[] = $this->mapRow(new TaskId(TaskId::SOURCE_DOCKER, (string) $row['ID'], $user, $name), $row, $lines);
-            }
+        try {
+            return JobMapper::fromRecord($job, $lines);
+        } catch (\InvalidArgumentException) {
+            throw new ApiException(ErrorCode::Server, 'The task could not be read.', 500);
         }
-
-        $appProcess = $this->appProcessRow($user);
-        if ($appProcess !== null) {
-            $tasks[] = $this->mapRow(new TaskId(TaskId::SOURCE_APP_PROCESS, (string) $appProcess['ID'], $user), $appProcess, $lines);
-        }
-
-        foreach ($this->queueTasks($user) as $recordId => $row) {
-            $tasks[] = $this->mapRow(new TaskId(TaskId::SOURCE_QUEUE, $recordId, $user), $row, 1);
-        }
-
-        usort($tasks, fn (TaskView $a, TaskView $b) => strcmp(TaskMapper::sortKey($b), TaskMapper::sortKey($a)));
-
-        return $tasks;
     }
 
-    /** @return list<TaskView> */
-    public function listSystem(int $lines): array
+    /**
+     * The jobs of a user, newest first.
+     *
+     * @return list<TaskView>
+     */
+    public function listForUser(string $user): array
     {
-        $tasks = [];
-        $sys = $this->readJson('v-list-sys-task', [(string) $lines]);
-        if ((string) ($sys['ID'] ?? '') !== '') {
-            $tasks[] = $this->mapRow(new TaskId(TaskId::SOURCE_SYS, (string) $sys['ID']), $sys, $lines);
+        return $this->rows(fn (Builder $q) => $q->where('user', $user));
+    }
+
+    /**
+     * The jobs of the server, newest first.
+     *
+     * @return list<TaskView>
+     */
+    public function listSystem(): array
+    {
+        return $this->rows(fn (Builder $q) => $q->where('user', 'system'));
+    }
+
+    /**
+     * The jobs a principal sees (USERS null: every job, else the jobs of
+     * those users and, when SYSTEM, the server's), newest first, filtered.
+     *
+     * @param  list<string>|null  $users
+     * @param  array{status?: string|list<string>, type?: string, user?: string, since?: string}  $filters
+     * @return array{items: list<TaskView>, total: int}
+     */
+    public function listVisible(?array $users, bool $system, array $filters, ?int $limit, int $offset): array
+    {
+        $this->refresh();
+        $query = $this->index->query();
+        if ($users !== null) {
+            $query->where(function (Builder $q) use ($users, $system) {
+                $q->whereIn('user', $users === [] ? [''] : $users);
+                if ($system) {
+                    $q->orWhere('user', 'system');
+                }
+            });
         }
-        $engine = $this->readDockerTask('v-list-sys-docker-task', [], $lines);
-        if ((string) ($engine['ID'] ?? '') !== '') {
-            $tasks[] = $this->mapRow(new TaskId(TaskId::SOURCE_DOCKER_ENGINE, (string) $engine['ID']), $engine, $lines);
+        $status = $filters['status'] ?? '';
+        if (is_array($status)) {
+            $query->whereIn('status', $status === [] ? [''] : $status);
+        } elseif ($status !== '') {
+            $query->where('status', $status);
+        }
+        if (($filters['type'] ?? '') !== '') {
+            $type = (string) $filters['type'];
+            str_ends_with($type, '.*')
+                ? $query->where('type', 'like', substr($type, 0, -1).'%')
+                : $query->where('type', $type);
+        }
+        if (($filters['user'] ?? '') !== '') {
+            $query->where('user', $filters['user']);
+        }
+        if (($filters['since'] ?? '') !== '') {
+            $query->where('queued_at', '>=', $filters['since']);
+        }
+        $total = (clone $query)->count();
+        $query->orderByDesc('id');
+        if ($limit !== null) {
+            $query->limit($limit)->offset($offset);
         }
 
-        return $tasks;
+        return ['items' => array_map(fn ($row) => JobMapper::fromRow($row), $query->get()->all()), 'total' => $total];
+    }
+
+    /** Sync the job index unless a list did it a moment ago. */
+    public function refresh(): void
+    {
+        try {
+            $this->index->refresh();
+        } catch (JobStoreException) {
+            throw new ApiException(ErrorCode::Server, 'The tasks could not be read.', 500);
+        } catch (JobIndexUnavailable) {
+            throw new ApiException(ErrorCode::Server, 'The job index of the panel cannot be written.', 500);
+        }
+    }
+
+    /**
+     * @param  callable(Builder): mixed  $scope
+     * @return list<TaskView>
+     */
+    private function rows(callable $scope): array
+    {
+        $this->refresh();
+        try {
+            $query = $this->index->query();
+        } catch (JobIndexUnavailable) {
+            throw new ApiException(ErrorCode::Server, 'The job index of the panel cannot be written.', 500);
+        }
+        $scope($query);
+
+        return array_map(fn ($row) => JobMapper::fromRow($row), $query->orderByDesc('id')->get()->all());
     }
 
     public function userExists(string $user): bool
@@ -152,149 +218,6 @@ final class TaskService
         return false;
     }
 
-    private function getSys(TaskId $id, int $lines): TaskView
-    {
-        $row = $this->readJson('v-list-sys-task', [(string) $lines]);
-        $current = (string) ($row['ID'] ?? '');
-        if ($current === '') {
-            throw new ApiException(ErrorCode::Gone, 'The task result is no longer kept.', 410);
-        }
-        if ($current !== $id->recordId) {
-            throw new ApiException(ErrorCode::Gone, 'The task result is no longer kept.', 410);
-        }
-
-        return $this->mapRow($id, $row, $lines);
-    }
-
-    private function getDockerEngine(TaskId $id, int $lines): TaskView
-    {
-        $row = $this->readDockerTask('v-list-sys-docker-task', [], $lines);
-        $current = (string) ($row['ID'] ?? '');
-        if ($current === '' || $current !== $id->recordId) {
-            throw new ApiException(ErrorCode::Gone, 'The task result is no longer kept.', 410);
-        }
-        // A finished install changes DOCKER_SYSTEM, as on the page (spec §4.4)
-        if ((string) ($row['STATUS'] ?? '') === 'done') {
-            $this->config->forget();
-        }
-
-        return $this->mapRow($id, $row, $lines);
-    }
-
-    private function getNode(TaskId $id, int $lines): TaskView
-    {
-        $row = $this->readJson('v-list-user-node-task', [$id->user, (string) $lines]);
-        $current = (string) ($row['ID'] ?? '');
-        if ($current === '' || $current !== $id->recordId) {
-            throw new ApiException(ErrorCode::Gone, 'The task result is no longer kept.', 410);
-        }
-
-        return $this->mapRow($id, $row, $lines);
-    }
-
-    private function getDockerApp(TaskId $id, int $lines): TaskView
-    {
-        if (! $this->dockerAppExists($id->user, (string) $id->app)) {
-            throw new ApiException(ErrorCode::NotExist, 'Not found.', 404);
-        }
-        $row = $this->readDockerTask('v-list-docker-app-task', [$id->user, (string) $id->app], $lines);
-        $current = (string) ($row['ID'] ?? '');
-        if ($current === '' || $current !== $id->recordId) {
-            throw new ApiException(ErrorCode::Gone, 'The task result is no longer kept.', 410);
-        }
-
-        return $this->mapRow($id, $row, $lines);
-    }
-
-    private function getAppProcess(TaskId $id, int $lines): TaskView
-    {
-        $row = $this->appProcessRow((string) $id->user);
-        if ($row === null || (string) $row['ID'] !== $id->recordId) {
-            throw new ApiException(ErrorCode::Gone, 'The task result is no longer kept.', 410);
-        }
-
-        return $this->mapRow($id, $row, $lines);
-    }
-
-    /**
-     * The last one-off task of the user's app processes as a task row: KIND
-     * app-process, ARGS domain, process and task. Null when there is none.
-     *
-     * @return array<string, mixed>|null
-     */
-    private function appProcessRow(string $user): ?array
-    {
-        $task = $this->readJson('v-list-app-process-task', [$user])['TASK'] ?? null;
-        if (! is_array($task) || (string) ($task['ID'] ?? '') === '') {
-            return null;
-        }
-        $value = fn (string $key): string => is_scalar($task[$key] ?? null) ? (string) $task[$key] : '';
-
-        return [
-            'ID' => $value('ID'),
-            'KIND' => 'app-process',
-            'ARGS' => trim($value('DOMAIN').' '.$value('NAME').' '.$value('TASK')),
-            'DOMAIN' => $value('DOMAIN'),
-            'NAME' => $value('NAME'),
-            'STATUS' => $value('STATUS'),
-            'EXIT' => $value('EXIT'),
-            'START' => $value('START'),
-            'END' => $value('END'),
-            'LOG' => '',
-        ];
-    }
-
-    private function getInstall(TaskId $id, int $lines): TaskView
-    {
-        $row = $this->readJson('v-list-user-quick-install-task', [$id->user, (string) $lines]);
-        $current = (string) ($row['ID'] ?? '');
-        if ($current === '' || $current !== $id->recordId) {
-            throw new ApiException(ErrorCode::Gone, 'The task result is no longer kept.', 410);
-        }
-
-        return $this->mapRow($id, $row, $lines);
-    }
-
-    private function getMalware(TaskId $id, int $lines): TaskView
-    {
-        $row = $this->readJson('v-list-user-malware-task', [$id->user, (string) $lines]);
-        $current = (string) ($row['ID'] ?? '');
-        if ($current === '' || $current !== $id->recordId) {
-            throw new ApiException(ErrorCode::Gone, 'The task result is no longer kept.', 410);
-        }
-
-        return $this->mapRow($id, $row, $lines);
-    }
-
-    private function getQueue(TaskId $id, int $lines): TaskView
-    {
-        $result = $this->arc->run('v-list-user-tasks', [$id->user, $id->recordId, (string) $lines, 'json'], Options::allowFailure());
-        if (! $result->ok()) {
-            if ($result->exit() === ExitCode::NotExist) {
-                throw new ApiException(ErrorCode::Gone, 'The task result is no longer kept.', 410);
-            }
-            throw new ApiException(ErrorCode::Server, 'The task could not be read.', 500);
-        }
-        $row = json_decode($result->stdout, true);
-        if (! is_array($row)) {
-            throw new ApiException(ErrorCode::Server, 'The task could not be read.', 500);
-        }
-
-        return $this->mapRow($id, $row, $lines);
-    }
-
-    /**
-     * @param  array<string, mixed>  $row
-     */
-    private function mapRow(TaskId $id, array $row, int $lines): TaskView
-    {
-        try {
-            return TaskMapper::fromSource($id, $row, $lines);
-        } catch (\InvalidArgumentException) {
-            throw new ApiException(ErrorCode::Server, 'The task could not be read.', 500);
-        }
-    }
-
     /**
      * @return array<string, mixed>
      */
@@ -305,32 +228,6 @@ final class TaskService
         } catch (ArcCommandException) {
             throw new ApiException(ErrorCode::Server, 'The task could not be read.', 500);
         }
-    }
-
-    /**
-     * @param  list<string>  $args
-     * @return array<string, mixed>
-     */
-    private function readDockerTask(string $command, array $args, int $lines): array
-    {
-        $offset = 0;
-        $log = '';
-        $row = [];
-        for ($i = 0; $i < 512; $i++) {
-            $chunk = $this->readJson($command, [...$args, (string) $offset]);
-            $row = $chunk;
-            $piece = (string) ($chunk['LOG'] ?? '');
-            $log = $offset === 0 ? $piece : $log.$piece;
-            $next = (int) ($chunk['OFFSET'] ?? 0);
-            if ($next <= $offset) {
-                break;
-            }
-            $offset = $next;
-        }
-        $parts = explode("\n", rtrim($log, "\n"));
-        $row['LOG'] = $parts === [''] ? '' : implode("\n", array_slice($parts, -$lines));
-
-        return $row;
     }
 
     /** @return list<array<string, mixed>> */

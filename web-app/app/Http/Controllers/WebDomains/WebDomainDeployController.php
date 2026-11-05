@@ -220,11 +220,12 @@ final class WebDomainDeployController extends Controller
             return null;
         }
         try {
-            $view = $tasks->get(TaskId::queue($user, $task), self::LOG_LINES)->toArray();
+            $job = $tasks->get(TaskId::job($task), self::LOG_LINES);
         } catch (Throwable) {
             return null;
         }
-        if ($view['kind'] !== 'deploy' || explode(' ', (string) $view['args'])[0] !== $domain) {
+        $view = $job->toArray();
+        if ($job->user !== $user || $view['kind'] !== 'deploy' || $job->object !== 'deploy:'.$domain) {
             return null;
         }
         $lines = $view['log'] === '' || $view['log'] === null ? [] : explode("\n", rtrim((string) $view['log'], "\n"));

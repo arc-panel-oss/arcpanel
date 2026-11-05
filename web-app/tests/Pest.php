@@ -1033,3 +1033,34 @@ function domainPhpSettingsRow(array $overrides = [], array $settings = []): arra
         'WARNINGS' => [],
     ], $overrides);
 }
+
+// Jobs of the Job Center (E15)
+
+/** A job record as v-list-job and v-list-jobs print it */
+function jobRecord(string $id, array $values = []): array
+{
+    return array_merge([
+        'ID' => $id, 'TYPE' => 'backup.user', 'USER' => 'bob', 'OWNER' => 'hostco', 'ACTOR' => 'bob',
+        'OBJECT' => 'user:bob', 'ARGS' => 'v-backup-user bob yes', 'STATUS' => 'succeeded', 'EXIT' => '0', 'ERROR' => '',
+        'UNIT' => 'arcpanel-job-'.$id, 'PID' => '', 'QUEUED' => '2026-10-07 05:00:00', 'START' => '2026-10-07 05:00:01',
+        'END' => '2026-10-07 05:10:00', 'HEARTBEAT' => '', 'ATTEMPTS' => '1', 'RETRY_OF' => '', 'RESOURCE' => '',
+        'UPDATED' => '2026-10-07 05:10:00', 'CLASS' => 'backup', 'RETRYABLE' => 'yes',
+    ], $values);
+}
+
+/**
+ * The jobs of the fixtures: v-list-job of each with its log, and v-list-jobs.
+ *
+ * @param  list<array<string, string>>  $jobs
+ */
+function fakeJobs(ArcCommandFake $fake, array $jobs): void
+{
+    $all = [];
+    foreach ($jobs as $job) {
+        $log = $job['LOG'] ?? '';
+        unset($job['LOG']);
+        $all[$job['ID']] = $job;
+        $fake->on('v-list-job', [$job['ID'], '0', 'json'])->returnsJson($job + ['LOG' => $log, 'OFFSET' => strlen($log), 'SIZE' => strlen($log)]);
+    }
+    $fake->on('v-list-jobs')->returnsJson($all);
+}

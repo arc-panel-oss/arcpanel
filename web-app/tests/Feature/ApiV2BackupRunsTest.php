@@ -69,7 +69,7 @@ it('answers every run newest first with its fields', function () {
 
     expect(array_column($data, 'id'))->toBe(['17923000004321', '17922000001234', '17921000005678', '17920000000001']);
     expect($data[0])->toBe([
-        'id' => '17923000004321', 'user' => 'bob', 'engine' => 'tar', 'trigger' => 'request', 'task' => 'queue:bob:17923000001111',
+        'id' => '17923000004321', 'user' => 'bob', 'engine' => 'tar', 'trigger' => 'request', 'task' => 'job:17923000001111',
         'status' => 'running', 'started_at' => '2026-10-18T09:00:00', 'finished_at' => null, 'exit_code' => null, 'error' => null,
         'archive' => null, 'size_mb' => null, 'job' => null, 'destinations' => [],
     ]);

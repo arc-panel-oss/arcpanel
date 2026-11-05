@@ -113,6 +113,12 @@ Route::get('/access-key-sets', [AccessKeyController::class, 'sets'])->name('acce
 Route::get('/docker-catalog', [DockerCatalogController::class, 'index'])->defaults('api_area', 'apps')->name('docker-catalog.index');
 Route::get('/docker-catalog/{slug}', [DockerCatalogController::class, 'show'])->defaults('api_area', 'apps')->name('docker-catalog.show');
 
+// Tasks are the jobs of the Job Center since E15 (spec §7.1)
+Route::get('/tasks', [TaskController::class, 'all'])->defaults('api_area', 'backup')->name('tasks.index');
+Route::middleware('not-readonly')->group(function () {
+    Route::post('/tasks/{id}/cancel', [TaskController::class, 'cancel'])->where('id', '[A-Za-z0-9:._-]+')->defaults('api_area', 'backup')->name('tasks.cancel');
+    Route::post('/tasks/{id}/retry', [TaskController::class, 'retry'])->where('id', '[A-Za-z0-9:._-]+')->defaults('api_area', 'backup')->name('tasks.retry');
+});
 Route::get('/tasks/{id}', [TaskController::class, 'show'])->where('id', '.+')->defaults('api_area', 'backup')->name('tasks.show');
 Route::get('/system/tasks', [TaskController::class, 'system'])->defaults('api_area', 'backup')->name('system.tasks.index');
 

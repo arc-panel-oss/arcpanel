@@ -121,7 +121,8 @@ final class TaskMapper
         return match ($raw) {
             'running' => 'running',
             'done', 'succeeded' => 'succeeded',
-            'failed' => 'failed',
+            'failed', 'partial' => 'failed',
+            'cancelled' => 'cancelled',
             'queued' => 'queued',
             default => throw new \InvalidArgumentException('Unknown task status.'),
         };
