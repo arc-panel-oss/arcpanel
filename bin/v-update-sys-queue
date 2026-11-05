@@ -21,8 +21,6 @@ queue=$1
 source /etc/arcpanel/arcpanel.conf
 # shellcheck source=/usr/local/arcpanel/func/main.sh
 source $ARCPANEL/func/main.sh
-# shellcheck source=/usr/local/arcpanel/func/queuetask.sh
-source $ARCPANEL/func/queuetask.sh
 # load config file
 source_conf "$ARCPANEL/conf/arcpanel.conf"
 
@@ -48,11 +46,12 @@ fi
 case $queue in
 	restart) bash $ARCPANEL/data/queue/$queue.pipe > /dev/null 2>&1 ;;
 	webstats) bash $ARCPANEL/data/queue/$queue.pipe > /dev/null 2>&1 ;;
-	backup) bash $ARCPANEL/data/queue/$queue.pipe > /dev/null 2>&1 ;;
+	# The backup and letsencrypt queues are jobs since E15: an old cron line
+	# runs the job queue until the 2.7.0 upgrade replaces it
+	backup | letsencrypt) exec "$BIN/v-update-sys-jobs" ;;
 	disk) bash $ARCPANEL/data/queue/$queue.pipe > /dev/null 2>&1 ;;
 	daily)
 		bash $ARCPANEL/data/queue/$queue.pipe > /dev/null 2>&1
-		qt_cleanup_all
 		# A cloned machine gets its own server identifier (E43 B1)
 		$BIN/v-update-sys-server-id > /dev/null 2>&1
 		# The request journal of REST API v2 keeps 7 days (E43 B4)
@@ -66,7 +65,6 @@ case $queue in
 		;;
 	traffic) bash $ARCPANEL/data/queue/$queue.pipe > /dev/null 2>&1 ;;
 	dns-cluster) bash $ARCPANEL/data/queue/$queue.pipe > /dev/null 2>&1 ;;
-	letsencrypt) bash $ARCPANEL/data/queue/$queue.pipe > /dev/null 2>&1 ;;
 	*) check_args '1' '0' 'QUEUE' ;;
 esac
 

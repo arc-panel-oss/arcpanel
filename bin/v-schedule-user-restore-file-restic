@@ -71,12 +71,8 @@ if [ "$path" = "$home" ] || [[ "$path" != "$home"/* ]]; then
 	check_result "$E_FORBIDEN" "the path is outside the home directory of $user"
 fi
 
-# One restore of the user at a time (is_backup_scheduled looks for unquoted
-# names only).
+# One restore of the user at a time
 is_backup_scheduled 'restore'
-if [ -e "$ARCPANEL/data/queue/backup.pipe" ] && grep -q "v-restore-[a-z-]*restic '$user' " "$ARCPANEL/data/queue/backup.pipe"; then
-	check_result "$E_EXISTS" "restore is already scheduled"
-fi
 
 # Perform verification if read-only mode is enabled
 check_arcpanel_demo_mode
@@ -95,11 +91,8 @@ if ! restic_user "$user" cat snapshot -- "$snapshot" > /dev/null 2>&1; then
 	check_result "$E_NOTEXIST" "snapshot $snapshot doesn't exist"
 fi
 
-# The queue runs backup.pipe with bash; the line ends with a marker that its
-# own sed call removes once the restore has run.
-marker="arcpanel-restore-file-$(date +%s)-$RANDOM"
-body="$BIN/v-restore-file-restic '$user' '$snapshot' '$path' 'yes' >> $log 2>&1; sed -i '/$marker\$/d' $ARCPANEL/data/queue/backup.pipe # $marker"
-qt_queue file-restore "$snapshot $path" "$ARCPANEL/data/queue/backup.pipe" "$body"
+# A job of the backup queue (E15)
+qt_job restore.file "user:$user" -- v-restore-file-restic "$user" "$snapshot" "$path" yes
 
 #----------------------------------------------------------#
 #                         ArcPanel                         #

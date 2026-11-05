@@ -5,11 +5,12 @@
 # example: v-list-user-tasks admin json
 # example: v-list-user-tasks admin 17280000001234 100 json
 #
-# This function prints the queue-task records of USER, newest first, or
-# one record. LOG is the last LINES lines of the task log (default 100,
-# at most 1000). A record that is still queued but whose line is gone
-# from every queue is stored as failed. ATTEMPTS counts the runs of a
-# task that the queue retries.
+# This function prints the queue tasks of USER, newest first, or one task:
+# since E15 the jobs of the backup, restore, letsencrypt and deploy types,
+# in the format of the old records (KIND, ARGS). LOG is the last LINES lines
+# of the job log (default 100, at most 1000). ATTEMPTS counts the runs of a
+# task that the queue retries. Deprecated in 2.7.0 (v-list-job,
+# v-list-jobs); removed in 2.8.
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -62,34 +63,33 @@ fi
 #                       Action                             #
 #----------------------------------------------------------#
 
-qt_lock
-qt_reap_unlocked
-qt_unlock
-
-log_of() {
-	local task="$1" file text
-	file=$(qt_log "$user" "$task")
-	text=''
-	if [ -f "$file" ]; then
-		text=$(tail -n "$lines" "$file" | sed -e 's/\x1b\[[0-9;?]*[A-Za-z]//g' -e 's/\r$//' -e 's/.*\r//' -e 's/.\x08//g')
-	fi
-	printf '%s' "$text"
+# The queue-task jobs of USER, newest first
+user_job_ids() {
+	[ -d "$JOB_DIR" ] || return 0
+	grep -rlE --include='*.conf' "(^| )TYPE='($QT_TYPES)'" "$JOB_DIR" 2> /dev/null \
+		| xargs -r grep -lF " USER='$user' " 2> /dev/null \
+		| sed -E 's|.*/([0-9]{14})\.conf$|\1|' | grep -E '^[0-9]{14}$' | sort -r
 }
 
 record_json() {
-	local task="$1" text
-	text=$(log_of "$task")
+	local task="$1" text type status
+	job_read "$task"
+	type=${JOB[TYPE]}
+	status=${JOB[STATUS]}
+	text=$(job_log_tail "$task" "$lines")
+	# cancelled is new in E15; the old records knew failed only
+	[ "$status" = 'cancelled' ] && status=failed
 	jq -nc \
 		--arg ID "$task" \
-		--arg KIND "$(qt_get "$user" "$task" KIND)" \
-		--arg task_args "$(qt_get "$user" "$task" ARGS)" \
-		--arg STATUS "$(qt_get "$user" "$task" STATUS)" \
-		--arg EXIT "$(qt_get "$user" "$task" EXIT)" \
-		--arg ERROR "$(qt_get "$user" "$task" ERROR)" \
-		--arg QUEUED "$(qt_get "$user" "$task" QUEUED)" \
-		--arg START "$(qt_get "$user" "$task" START)" \
-		--arg END "$(qt_get "$user" "$task" END)" \
-		--arg ATTEMPTS "$(qt_get "$user" "$task" ATTEMPTS)" \
+		--arg KIND "$(qt_kind "$type")" \
+		--arg task_args "$(qt_args "$task")" \
+		--arg STATUS "$status" \
+		--arg EXIT "${JOB[EXIT]}" \
+		--arg ERROR "${JOB[ERROR]}" \
+		--arg QUEUED "${JOB[QUEUED]}" \
+		--arg START "${JOB[START]}" \
+		--arg END "${JOB[END]}" \
+		--arg ATTEMPTS "${JOB[ATTEMPTS]}" \
 		--arg LOG "$text" \
 		'{ID: $ID, KIND: $KIND, ARGS: $task_args, STATUS: $STATUS, EXIT: $EXIT,
 			ERROR: $ERROR, QUEUED: $QUEUED, START: $START, END: $END,
@@ -97,43 +97,31 @@ record_json() {
 }
 
 print_shell() {
-	local task="$1" text
-	text=$(log_of "$task")
-	record_json "$task" | jq -r 'to_entries[] | select(.key != "LOG") | "\(.key): \(.value)"'
+	local task="$1" json
+	json=$(record_json "$task")
+	jq -r 'to_entries[] | select(.key != "LOG") | "\(.key): \(.value)"' <<< "$json"
 	echo
-	printf '%s\n' "$text"
+	jq -r .LOG <<< "$json"
 }
 
 if [ -n "$id" ]; then
-	if [ ! -f "$(qt_conf "$user" "$id")" ]; then
+	if ! job_exists "$id" || [ "$(job_get "$id" USER)" != "$user" ] \
+		|| ! [[ "$(job_get "$id" TYPE)" =~ ^($QT_TYPES)$ ]]; then
 		check_result "$E_NOTEXIST" "task $id doesn't exist"
 	fi
+	job_reap_one "$id" > /dev/null 2>&1 || true
 	json=$(record_json "$id")
 	case "$format" in
 		json) printf '%s\n' "$json" ;;
 		*) print_shell "$id" ;;
 	esac
 else
-	dir=$(qt_dir "$user")
-	ids=()
-	if [ -d "$dir" ]; then
-		shopt -s nullglob
-		for file in "$dir"/*.conf; do
-			ids+=("$(basename "$file" .conf)")
-		done
-		shopt -u nullglob
-	fi
-	if [ "${#ids[@]}" -gt 0 ]; then
-		mapfile -t ids < <(printf '%s\n' "${ids[@]}" | sort -nr)
-	fi
+	mapfile -t ids < <(user_job_ids)
 	case "$format" in
 		json)
-			json='{}'
 			for task in "${ids[@]}"; do
-				one=$(record_json "$task")
-				json=$(jq -nc --argjson obj "$json" --argjson one "$one" --arg key "$task" '$obj + {($key): $one}')
-			done
-			printf '%s\n' "$json"
+				record_json "$task"
+			done | jq -sc 'map({key: .ID, value: .}) | from_entries'
 			;;
 		*)
 			for task in "${ids[@]}"; do

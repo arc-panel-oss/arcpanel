@@ -61,7 +61,7 @@ check_arcpanel_demo_mode
 disk_usage=$(df $BACKUP | tail -n1 | tr ' ' '\n' | grep % | cut -f 1 -d %)
 if [ "$disk_usage" -ge "$BACKUP_DISK_LIMIT" ]; then
 	echo "Error: Not enough disk space" | $SENDMAIL -s "$subj" $email $notify
-	sed -i "/ $user /d" $ARCPANEL/data/queue/backup.pipe
+	job_no_retry
 	check_result $E_DISK "Not enough disk space"
 fi
 
@@ -75,7 +75,7 @@ if [ ! -e "$BACKUP/$backup" ]; then
 	if [ -z "$downloaded" ]; then
 		subj="Download of $backup failed for $user"
 		$BIN/v-add-user-notification $user "$subj" "<p class'u-text-bold'>Unable to retrieve backup file from remote server.</p><p><span class='u-text-bold'>Error:</span> $backup file doesn't exist in <code>'${BACKUP}'</code> directory.</p>"
-		sed -i "/v-download-backup $user /d" $ARCPANEL/data/queue/backup.pipe
+		job_no_retry
 		check_result "$E_NOTEXIST" "backup file $backup doesn't exist in '${BACKUP}' folder"
 	else
 		if [ -e "$BACKUP/$backup" ]; then
@@ -99,8 +99,8 @@ if [ -e "$BACKUP/$backup" ]; then
 	$BIN/v-add-user-notification "$user" "$subj" "<p>Backup file <code>$backup</code> was retrieved from the remote server and will be available to download for 12 hours.</p>"
 fi
 
-# Cleaning restore queue
-sed -i "/v-download-backup $user /d" $ARCPANEL/data/queue/backup.pipe
+# Whatever the result, the job queue does not run it again (E15)
+job_no_retry
 
 # Logging
 $BIN/v-log-action "system" "Info" "Backup" "Backup download requested (User: $user, Archive: $backup)."

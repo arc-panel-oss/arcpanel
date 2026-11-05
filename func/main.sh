@@ -391,13 +391,24 @@ is_incremental_backup_enabled() {
 }
 
 # Check user backup settings
+# A backup (or restore) job of the user is queued or running (E15: the jobs
+# of func/job.sh, loaded by func/queuetask.sh)
 is_backup_scheduled() {
-	if [ -e "$ARCPANEL/data/queue/backup.pipe" ]; then
-		check_q=$(grep " $user " $ARCPANEL/data/queue/backup.pipe | grep $1)
-		if [ -n "$check_q" ]; then
-			check_result "$E_EXISTS" "$1 is already scheduled"
-		fi
+	local id
+	declare -F job_active_with_key > /dev/null || return 0
+	id=$(job_active_with_key "user:$user" || true)
+	if [ -n "$id" ] && [[ "$(job_get "$id" TYPE)" == "$1".* ]]; then
+		check_result "$E_EXISTS" "$1 is already scheduled"
 	fi
+}
+
+# A command run by a job of the backup or letsencrypt queue says that its
+# failure is final: the queue does not run it again (E15, func/job.sh)
+job_no_retry() {
+	if [[ "${JOB_ID-}" =~ ^[0-9]{14}$ ]] && [ -d "$ARCPANEL/data/jobs" ]; then
+		: > "$ARCPANEL/data/jobs/$JOB_ID.noretry"
+	fi
+	return 0
 }
 
 # Check if object is new

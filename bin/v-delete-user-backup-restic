@@ -65,8 +65,6 @@ restic_user "$user" forget -- "$snapshot"
 #                         ArcPanel                         #
 #----------------------------------------------------------#
 
-sed -i "/v-delete-user-backup-restic '$user' '$snapshot' /d" $ARCPANEL/data/queue/backup.pipe
-
 # Logging
 $BIN/v-log-action "system" "Info" "Backup" "Restic snapshot successfully deleted (User: $user, Snapshot: $snapshot)."
 $BIN/v-log-action "$user" "Info" "Backup" "Restic snapshot successfully deleted (Snapshot: $snapshot)."

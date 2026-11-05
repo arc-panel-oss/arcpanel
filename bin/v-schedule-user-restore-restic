@@ -68,26 +68,20 @@ if ! restic_user "$user" cat snapshot -- "$snapshot" > /dev/null 2>&1; then
 	check_result "$E_NOTEXIST" "Unable to download from snapshot"
 fi
 
-pipe="$ARCPANEL/data/queue/backup.pipe"
+# A job of the backup queue (E15)
 if [ -z "$object" ]; then
-	qt_queue snapshot-restore "$snapshot" "$pipe" \
-		"$BIN/v-restore-user-restic '$user' '$snapshot' '*' '*' '*' '*' 'yes' 'yes' 'yes' >> $log 2>&1"
+	qt_job restore.restic "user:$user" -- v-restore-user-restic "$user" "$snapshot" '*' '*' '*' '*' yes yes yes
 else
 	if [ "$object" = "web" ]; then
-		qt_queue snapshot-restore "$snapshot $object $value" "$pipe" \
-			"$BIN/v-restore-web-domain-restic '$user' '$snapshot' '$value' 'yes' >> $log 2>&1"
+		qt_job restore.restic "user:$user" -- v-restore-web-domain-restic "$user" "$snapshot" "$value" yes
 	elif [ "$object" = "dns" ]; then
-		qt_queue snapshot-restore "$snapshot $object $value" "$pipe" \
-			"$BIN/v-restore-dns-domain-restic '$user' '$snapshot' '$value' 'yes' >> $log 2>&1"
+		qt_job restore.restic "user:$user" -- v-restore-dns-domain-restic "$user" "$snapshot" "$value" yes
 	elif [ "$object" = "mail" ]; then
-		qt_queue snapshot-restore "$snapshot $object $value" "$pipe" \
-			"$BIN/v-restore-mail-domain-restic '$user' '$snapshot' '$value' 'yes' >> $log 2>&1"
+		qt_job restore.restic "user:$user" -- v-restore-mail-domain-restic "$user" "$snapshot" "$value" yes
 	elif [ "$object" = "db" ]; then
-		qt_queue snapshot-restore "$snapshot $object $value" "$pipe" \
-			"$BIN/v-restore-database-restic '$user' '$snapshot' '$value' 'yes' >> $log 2>&1"
+		qt_job restore.restic "user:$user" -- v-restore-database-restic "$user" "$snapshot" "$value" yes
 	elif [ "$object" = "cron" ]; then
-		qt_queue snapshot-restore "$snapshot $object" "$pipe" \
-			"$BIN/v-restore-cron-job-restic '$user' '$snapshot' 'yes' >> $log 2>&1"
+		qt_job restore.restic "user:$user" -- v-restore-cron-job-restic "$user" "$snapshot" yes
 	else
 		check_result "$E_INVALID" "Not supported"
 	fi

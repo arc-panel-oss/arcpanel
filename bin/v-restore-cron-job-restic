@@ -88,7 +88,7 @@ $BIN/v-update-user-counters $user
 $BIN/v-update-user-counters "$ROOT_USER"
 $BIN/v-update-sys-ip-counters
 
-sed -i "/v-restore-cron-job-restic '$user' '$snapshot'/d" $ARCPANEL/data/queue/backup.pipe
+job_no_retry
 
 # Logging
 $BIN/v-log-action "system" "Info" "Backup" "Cron jobs successfully restored (User: $user, Snapshot: $snapshot)."

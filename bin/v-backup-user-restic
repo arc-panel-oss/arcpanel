@@ -198,8 +198,8 @@ if [ -e "$BACKUP/$user.log" ] && [ "$notify" = "yes" ]; then
 	$BIN/v-add-user-notification "$user" "Snapshot created successfully" "Snap shot of user successfully created"
 fi
 
-# Deleting task from queue
-sed -i "/v-backup-user-restic $user /d" $ARCPANEL/data/queue/backup.pipe
+# Whatever the result, the job queue does not run it again (E15)
+job_no_retry
 
 # Logging
 $BIN/v-log-action "$user" "Info" "Backup" "Backup created."

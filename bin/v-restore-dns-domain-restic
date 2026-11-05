@@ -80,7 +80,7 @@ for domain in "${domains[@]}"; do
 			if [ "$check_new" = "yes" ]; then
 				error="$domain belongs to another user"
 				echo "$error" | $SENDMAIL -s "$subj" "$email" "$notify"
-				sed -i "/ $user /d" $ARCPANEL/data/queue/backup.pipe
+				job_no_retry
 				check_result "$E_PARSING" "$error"
 			fi
 		fi
@@ -175,7 +175,7 @@ $BIN/v-update-user-counters $user
 $BIN/v-update-user-counters "$ROOT_USER"
 $BIN/v-update-sys-ip-counters
 
-sed -i "/v-restore-dns-domain-restic '$user' '$snapshot' '$dns' /d" $ARCPANEL/data/queue/backup.pipe
+job_no_retry
 
 # Logging
 $BIN/v-log-action "system" "Info" "Backup" "DNS Domain successfully restored (User: $user, Snapshot: $snapshot, Databse: $database)."

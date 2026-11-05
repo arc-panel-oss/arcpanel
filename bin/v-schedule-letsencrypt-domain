@@ -85,27 +85,22 @@ fi
 # Adding cronjob scheduler for LE
 $BIN/v-add-cron-letsencrypt-job
 
-# One queued line per domain and kind. A web line and a mail line may both wait.
-# Replacing a line marks its task failed; the new line carries a new id.
-pipe=$ARCPANEL/data/queue/letsencrypt.pipe
-touch "$pipe"
-qt_lock
-if [ "$mail" = "yes" ]; then
-	qt_fail_replaced "$pipe" "v-add-letsencrypt-domain ${user} ${domain} '' yes "
-	sed -i "\|v-add-letsencrypt-domain ${user} ${domain} '' yes |d" "$pipe"
-	qt_create_unlocked letsencrypt "$domain mail"
-	printf '%s%s\n' "$(qt_prefix)" \
-		"$BIN/v-add-letsencrypt-domain $user $domain '' yes $key_algo" >> "$pipe"
-else
-	qt_fail_replaced "$pipe" "v-add-letsencrypt-domain ${user} ${domain} '.*' no "
-	sed -i "\|v-add-letsencrypt-domain ${user} ${domain} '.*' no |d" "$pipe"
-	qt_create_unlocked letsencrypt "$domain"
-	printf '%s%s\n' "$(qt_prefix)" \
-		"$BIN/v-add-letsencrypt-domain $user $domain '$aliases' no $key_algo" >> "$pipe"
+# A job of the letsencrypt queue (E15), one per domain and kind: a web and a
+# mail certificate may both wait. A newer request replaces a queued one (the
+# old job is cancelled with its reason); a running one is refused.
+object="web:$domain"
+[ "$mail" = "yes" ] && object="mail:$domain"
+job_lock
+queued=$(job_active_with_key "$object" queued || true)
+if [ -n "$queued" ] && [ "$(job_get "$queued" TYPE)" = 'letsencrypt.domain' ]; then
+	job_set "$queued" STATUS=cancelled "ERROR=replaced by a newer request" "END=$(date +'%F %T')"
 fi
-qt_cleanup_unlocked
-qt_unlock
-qt_emit_id "$QT_ID" "$format"
+job_unlock
+if [ "$mail" = "yes" ]; then
+	qt_job letsencrypt.domain "$object" -- v-add-letsencrypt-domain "$user" "$domain" '' yes "$key_algo"
+else
+	qt_job letsencrypt.domain "$object" -- v-add-letsencrypt-domain "$user" "$domain" "$aliases" no "$key_algo"
+fi
 
 #----------------------------------------------------------#
 #                         ArcPanel                         #

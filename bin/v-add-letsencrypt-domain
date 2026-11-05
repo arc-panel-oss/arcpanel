@@ -187,8 +187,7 @@ domain: ${domain}
 # Registering LetsEncrypt user account
 $BIN/v-add-letsencrypt-user $user
 if [ "$?" -ne 0 ]; then
-	touch $ARCPANEL/data/queue/letsencrypt.pipe
-	sed -i "/ $domain /d" $ARCPANEL/data/queue/letsencrypt.pipe
+	job_no_retry
 	send_notice "LETSENCRYPT" "Account registration failed ($user)"
 	check_result "$E_CONNECT" "LE account registration ($user)" > /dev/null
 fi
@@ -608,8 +607,7 @@ fi
 
 if [ "$?" -ne '0' ]; then
 	[ -d "$ssl_dir" ] && rm -rf "$ssl_dir"
-	touch $ARCPANEL/data/queue/letsencrypt.pipe
-	sed -i "/ $domain /d" $ARCPANEL/data/queue/letsencrypt.pipe
+	job_no_retry
 	send_notice 'LETSENCRYPT' "$domain certificate installation failed ($domain)"
 	check_result $? "SSL install" > /dev/null
 fi
@@ -677,9 +675,8 @@ fi
 #                         ArcPanel                         #
 #----------------------------------------------------------#
 
-# Deleting task from queue
-touch $ARCPANEL/data/queue/letsencrypt.pipe
-sed -i "/ $domain /d" $ARCPANEL/data/queue/letsencrypt.pipe
+# Whatever the result, the job queue does not run it again (E15)
+job_no_retry
 
 # Notifying user
 send_notice 'LETSENCRYPT' "$domain SSL has been installed successfully"

@@ -56,22 +56,9 @@ check_arcpanel_demo_mode
 #                       Action                             #
 #----------------------------------------------------------#
 
-# Adding restore task to the queue
-log="$ARCPANEL/log/restore.log"
-queue_file="$ARCPANEL/data/queue/backup.pipe"
-# Store a safely serialized command line for the legacy Bash queue consumer.
-body=$(printf 'nice -n 19 ionice -c 3 %q %q %q %q %q %q %q %q %q yes >> %q 2>&1' \
-	"$BIN/v-restore-user" \
-	"$user" \
-	"$backup" \
-	"$web" \
-	"$dns" \
-	"$mail" \
-	"$db" \
-	"$cron" \
-	"$udir" \
-	"$log")
-qt_queue restore "$backup" "$queue_file" "$body"
+# A job of the backup queue (E15); the arguments go to the command as they
+# are, without a shell
+qt_job restore.user "user:$user" -- v-restore-user "$user" "$backup" "$web" "$dns" "$mail" "$db" "$cron" "$udir" yes
 
 #----------------------------------------------------------#
 #                         ArcPanel                         #

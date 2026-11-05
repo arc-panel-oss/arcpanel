@@ -49,10 +49,8 @@ check_arcpanel_demo_mode
 #                       Action                             #
 #----------------------------------------------------------#
 
-# Adding backup task to the queue
-log=$ARCPANEL/log/backup.log
-qt_queue snapshot '' "$ARCPANEL/data/queue/backup.pipe" \
-	"$BIN/v-backup-user-restic $user yes >> $log 2>&1"
+# A job of the backup queue (E15)
+qt_job backup.restic "user:$user" -- v-backup-user-restic "$user" yes
 
 #----------------------------------------------------------#
 #                         ArcPanel                         #

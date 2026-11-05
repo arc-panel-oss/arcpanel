@@ -130,7 +130,7 @@ $BIN/v-update-user-counters $user
 $BIN/v-update-user-counters "$ROOT_USER"
 $BIN/v-update-sys-ip-counters
 
-sed -i "/v-restore-user-restic '$user' '$snapshot' /d" $ARCPANEL/data/queue/backup.pipe
+job_no_retry
 
 # Logging
 $BIN/v-log-action "system" "Info" "Backup" "User successfully restored (User: $user, Snapshot: $snapshot)."
