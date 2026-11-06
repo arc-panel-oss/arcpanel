@@ -12,7 +12,9 @@
 # packages only while no newer line is available, and announces a newer line
 # to the administrator once per version (panel notification and, with
 # UPGRADE_SEND_EMAIL, an e-mail). In auto mode the output goes to
-# $ARCPANEL/log/autoupdate.log and only an error is printed.
+# $ARCPANEL/log/autoupdate.log and only an error is printed. Both modes fail
+# when the ArcPanel APT source or its keyring is missing or apt cannot read the
+# repository; auto mode then also notifies the administrator once.
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -39,41 +41,75 @@ installed_packages() {
 	fi
 }
 
+# With UPGRADE_SEND_EMAIL, mails standard input to the administrator under SUBJECT
+mail_admin() {
+	local subject="$1" admin_email
+	if [ "$UPGRADE_SEND_EMAIL" != "true" ]; then
+		return 0
+	fi
+	admin_email=$($BIN/v-list-user "${ROOT_USER:-admin}" json | grep '"CONTACT"' | cut -d'"' -f4)
+	if [ -n "$admin_email" ]; then
+		$ARCPANEL/lib/mail-wrapper.php -s "$subject" "$admin_email" > /dev/null 2>&1
+	fi
+}
+
 # Announces VERSION of a newer line than LINE to the administrator once
 announce_line() {
-	local version="$1" line="$2" admin="${ROOT_USER:-admin}" admin_email notified
+	local version="$1" line="$2" admin="${ROOT_USER:-admin}" notified
 	if upd_in_list "$version" "${UPDATE_NOTIFIED_VERSION:-}"; then
 		return 0
 	fi
 	$BIN/v-add-user-notification "$admin" "ArcPanel $version is available" \
 		"<p>ArcPanel <b>$version</b> is a new release line. Automatic updates install only patch releases of ArcPanel $line, so this one waits for you.</p><p>Read the release notes, then update from Server › Updates.</p>" > /dev/null 2>&1
-	if [ "$UPGRADE_SEND_EMAIL" = "true" ]; then
-		admin_email=$($BIN/v-list-user "$admin" json | grep '"CONTACT"' | cut -d'"' -f4)
-		if [ -n "$admin_email" ]; then
-			{
-				echo "ArcPanel $version is available on $HOSTNAME."
-				echo
-				echo "Automatic updates install only patch releases of the installed line, ArcPanel $line,"
-				echo "so this release waits for you. Read the release notes first:"
-				echo "https://arcpanel.org/changelog"
-				echo
-				echo "Then update from Server > Updates in the panel."
-			} | $ARCPANEL/lib/mail-wrapper.php -s "ArcPanel $version is available" "$admin_email" > /dev/null 2>&1
-		fi
-	fi
+	{
+		echo "ArcPanel $version is available on $HOSTNAME."
+		echo
+		echo "Automatic updates install only patch releases of the installed line, ArcPanel $line,"
+		echo "so this release waits for you. Read the release notes first:"
+		echo "https://arcpanel.org/changelog"
+		echo
+		echo "Then update from Server > Updates in the panel."
+	} | mail_admin "ArcPanel $version is available"
 	notified="${UPDATE_NOTIFIED_VERSION:+$UPDATE_NOTIFIED_VERSION,}$version"
 	$BIN/v-change-sys-config-value 'UPDATE_NOTIFIED_VERSION' "$notified" > /dev/null
 	echo "Announced ArcPanel $version"
 }
 
+# Tells the administrator that automatic updates cannot read the ArcPanel
+# repository, for the reason PROBLEM. A notification with the same topic that
+# is still in the administrator's list is not added again; the e-mail goes with
+# each new notification.
+notify_repository() {
+	local problem="$1" admin="${ROOT_USER:-admin}"
+	local topic='Automatic updates cannot read the ArcPanel repository'
+	if $BIN/v-list-user-notifications "$admin" json 2> /dev/null | grep -qF "\"TOPIC\": \"$topic\""; then
+		return 0
+	fi
+	$BIN/v-add-user-notification "$admin" "$topic" \
+		"<p>$problem</p><p>Until this is fixed, this server gets no ArcPanel updates. The details and how to restore the repository are in $ARCPANEL/log/autoupdate.log.</p>" > /dev/null 2>&1
+	{
+		echo "The automatic update of ArcPanel on $HOSTNAME failed:"
+		echo
+		echo "$problem"
+		echo
+		echo "Until this is fixed, this server gets no ArcPanel updates."
+		echo "The details and how to restore the repository are in $ARCPANEL/log/autoupdate.log."
+	} | mail_admin "$topic"
+	echo "Notified $admin"
+}
+
 # The automatic update: patch releases of the installed line only
 auto_update() {
-	local installed line target newer package rc=0
+	local installed line target newer package out rc=0
 	installed="${VERSION:-$(upd_upstream_version "$(dpkg-query -W -f='${Version}' arcpanel)")}"
 	line="$(upd_version_line "$installed")"
 
-	apt-get update -o Dir::Etc::sourcelist="sources.list.d/arcpanel.list" \
-		-o Dir::Etc::sourceparts="-" -o APT::Get::List-Cleanup="0" -qq
+	out="$(upd_apt_update)" || rc=$?
+	[ -z "$out" ] || echo "$out"
+	if [ "$rc" -ne 0 ]; then
+		notify_repository "$(grep -m1 '^Error: ' <<< "$out" | cut -c8-)"
+		return "$rc"
+	fi
 
 	read -r target newer < <(apt-cache madison arcpanel | awk -F'|' '{gsub(/ /, "", $2); print $2}' \
 		| upd_pick_versions "$installed")
@@ -124,9 +160,19 @@ if [ "$mode" = 'auto' ]; then
 		exit "$rc"
 	fi
 else
-	for package in $(installed_packages); do
-		$BIN/v-update-sys-arcpanel "$package"
-	done
+	# Stop at once, with one error, when the repository cannot be read; a
+	# package that fails to update does not keep the others back
+	upd_apt_update
+	rc=$?
+	if [ "$rc" -eq 0 ]; then
+		for package in $(installed_packages); do
+			$BIN/v-update-sys-arcpanel "$package" || rc=$?
+		done
+	fi
+	if [ "$rc" -ne 0 ]; then
+		log_event "$rc" "$ARGUMENTS"
+		exit "$rc"
+	fi
 fi
 
 #----------------------------------------------------------#
