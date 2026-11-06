@@ -510,6 +510,13 @@
 	opacity: 0.45;
 	cursor: not-allowed;
 }
+/* A posted form waits for its answer (submit-busy.js): the spinner takes the icon's place */
+.ap-btn[aria-busy="true"] > .ic {
+	display: none;
+}
+.ap-btn[aria-busy="true"] {
+	pointer-events: none;
+}
 .ap-spinner {
 	width: 15px;
 	height: 15px;

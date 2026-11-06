@@ -80,7 +80,7 @@
                                         <x-ap-button class="ap-menu-item" :form-action="route('db.phpmyadmin', $params)" icon="external" formtarget="_blank">{{ __('phpMyAdmin') }}</x-ap-button>
                                     @endif
                                     @if ($can['update'])
-                                        <x-ap-button class="ap-menu-item" :form-action="route('db.download', $params)" icon="download">{{ __('Download') }}</x-ap-button>
+                                        <x-ap-button class="ap-menu-item" :form-action="route('db.download', $params)" icon="download" data-ap-no-busy>{{ __('Download') }}</x-ap-button>
                                     @endif
                                     @if ($can['suspend'])
                                         <div class="ap-menu-sep" role="separator"></div>

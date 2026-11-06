@@ -7,10 +7,12 @@ import { registerAll } from './alpine/index.js';
 import { initAutoSubmit } from './autosubmit.js';
 import { initDropdowns } from './dropdowns.js';
 import { loadIslands } from './islands/loader.js';
+import { initSubmitBusy } from './submit-busy.js';
 
 document.documentElement.classList.add('has-js');
 initDropdowns(document);
 initAutoSubmit(document);
+initSubmitBusy(document);
 
 window.Alpine = Alpine;
 Alpine.plugin(collapse);
