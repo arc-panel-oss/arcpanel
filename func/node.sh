@@ -260,7 +260,10 @@ node_cached_versions() {
 }
 
 # One JSON array of the majors >= NODE_MIN_MAJOR built for this server's
-# architecture: MAJOR, LATEST, LTS (codename), STATUS, EOL, CACHED
+# architecture: MAJOR, LATEST, LTS (codename), STATUS, EOL, CACHED. Releases
+# only: a pre-release such as v27.0.0-alpha.0.0.0 (in index.json since
+# 2026-10-29) is left out here and in node_resolve; its version is not X.Y.Z
+# and broke the whole list.
 node_releases_json() {
 	local arch cached schedule="$NODE_CACHE/schedule.json"
 	arch=$(node_arch) || {
@@ -275,6 +278,7 @@ node_releases_json() {
 		($sched[0] // {}) as $s
 		| [ .[]
 			| select((.files // []) | index($arch))
+			| select(.version | test("^v[0-9]+[.][0-9]+[.][0-9]+$"))
 			| . + { major: (.version | ltrimstr("v") | split(".")[0] | tonumber) }
 			| select(.major >= $min) ]
 		| group_by(.major)
@@ -315,7 +319,8 @@ node_resolve() {
 	fi
 	node_index_ensure || return "$E_CONNECT"
 	result=$(jq -r --arg spec "$spec" --arg arch "linux-$arch" '
-		[ .[] | select((.files // []) | index($arch)) | . + { v: (.version | ltrimstr("v")) } ]
+		[ .[] | select((.files // []) | index($arch)) | select(.version | test("^v[0-9]+[.][0-9]+[.][0-9]+$"))
+			| . + { v: (.version | ltrimstr("v")) } ]
 		| map(select(
 			if $spec == "lts" then .lts != false
 			elif ($spec | test("^[0-9]+$")) then (.v | split(".")[0]) == $spec
