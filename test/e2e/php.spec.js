@@ -155,7 +155,10 @@ test('user: pick the profile for a web domain and see its limits', async ({ page
 	await page.getByRole('tab', { name: 'PHP' }).click();
 	await expectAccessible(page);
 	await page.locator('label.ap-pick', { hasText: 'arce2e' }).click();
-	await page.getByRole('tabpanel', { name: 'PHP' }).getByRole('button', { name: 'Save' }).click();
+	await page
+		.getByRole('tabpanel', { name: 'PHP' })
+		.getByRole('button', { name: 'Save version and profile' })
+		.click();
 	await expectToast(page, 'Changes have been saved.');
 	await page.getByRole('tab', { name: 'PHP' }).click();
 	await expect(page.getByRole('tabpanel', { name: 'PHP' })).toContainText('160M');

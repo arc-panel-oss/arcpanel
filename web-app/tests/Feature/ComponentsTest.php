@@ -59,7 +59,9 @@ it('renders form fields with labels, hints, errors and old input', function (str
     expect($html)->toContain('<legend class="ap-label">Code</legend>')->toContain('value="302" checked');
 
     $html = component('<x-ap-switch name="hsts" label="HSTS" description="One year." />', dir: $dir);
-    expect($html)->toContain('role="switch"')->toContain('aria-describedby="f-hsts-hint"');
+    expect($html)->toContain('role="switch"')->toContain('aria-describedby="f-hsts-hint"')
+        // Named by the title alone; the description is not part of the name
+        ->toContain('<b id="f-hsts-label">HSTS</b>')->toContain('aria-labelledby="f-hsts-label"');
 
     $html = component('<x-ap-password name="pw" label="Password" :generate="true" />', dir: $dir);
     expect($html)->toContain('x-data="apPassword()"')->toContain('type="password"')->toContain('Generate')->toContain('ap-strength')
@@ -112,6 +114,21 @@ it('renders the data table, row selection and bulk bar', function (string $dir) 
     expect(component('<x-ap-pager :page="2" :pages="3" :total="1200" :per-page="500" url="/list?owner=bob" />', dir: $dir))
         ->toContain('501–1000')->toContain('href="/list?owner=bob&amp;page=3"')->toContain('aria-current="page">2');
 })->with('directions');
+
+it('shows the first, the last and the pages around the current one of a long pager', function () {
+    $html = component('<x-ap-pager :page="10" :pages="20" :total="1000" :per-page="50" url="/audit" />');
+    expect($html)->toContain('aria-current="page">10')
+        ->toContain('href="/audit?page=1"')->toContain('href="/audit?page=20"')
+        ->toContain('href="/audit?page=8"')->toContain('href="/audit?page=12"')
+        ->not->toContain('href="/audit?page=5"')->not->toContain('href="/audit?page=15"')
+        ->toContain('href="/audit?page=9" aria-label="Previous page"')->toContain('href="/audit?page=11" aria-label="Next page"');
+    expect(substr_count($html, 'class="ap-pager-gap"'))->toBe(2);
+
+    // Near the start: no gap before
+    $html = component('<x-ap-pager :page="2" :pages="20" :total="1000" :per-page="50" url="/audit" />');
+    expect($html)->toContain('href="/audit?page=4"')->not->toContain('href="/audit?page=6"');
+    expect(substr_count($html, 'class="ap-pager-gap"'))->toBe(1);
+});
 
 it('renders tabs, dialogs, code, logs and the remaining components', function (string $dir) {
     $html = component('<x-ap-tabs label="Settings" :tabs="[\'general\' => \'General\', \'ssl\' => \'SSL\']"><x-ap-tab-panel name="general">G</x-ap-tab-panel><x-ap-tab-panel name="ssl">S</x-ap-tab-panel></x-ap-tabs>', dir: $dir);

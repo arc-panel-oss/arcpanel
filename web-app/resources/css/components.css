@@ -1452,8 +1452,14 @@
 
 .ap-pager {
 	display: flex;
+	flex-wrap: wrap;
 	align-items: center;
 	gap: var(--ap-space-1);
+}
+.ap-pager-gap {
+	min-width: 20px;
+	color: var(--ap-fg-subtle);
+	text-align: center;
 }
 .ap-pager button {
 	min-width: 32px;
@@ -2713,21 +2719,32 @@ a.ap-pick:focus-visible {
 		padding: var(--ap-space-3-5) var(--ap-space-4);
 		border-bottom: 1px solid var(--ap-border);
 	}
+	/* The label on the left, the parts of the value together on the right
+	   (wrapping below it when they do not fit), not spread over the row */
 	.ap-table-cards tbody td {
 		display: flex;
+		flex-wrap: wrap;
 		align-items: center;
-		justify-content: space-between;
-		gap: var(--ap-space-3);
+		justify-content: flex-end;
+		gap: var(--ap-space-1) var(--ap-space-3);
 		height: auto;
 		padding: 0;
 		border: 0;
 		grid-column: 1 / -1;
+		text-align: end;
+		overflow-wrap: anywhere;
+	}
+	.ap-table-cards tbody td > * {
+		min-width: 0;
+		max-width: 100%;
 	}
 	.ap-table-cards tbody td[data-label]::before {
 		content: attr(data-label);
+		margin-inline-end: auto;
 		font: 500 11px/1 var(--ap-font-mono);
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
+		text-align: start;
 		color: var(--ap-fg-subtle);
 	}
 	.ap-table-cards .col-check {
@@ -2741,6 +2758,7 @@ a.ap-pick:focus-visible {
 		min-height: 32px;
 		font-size: var(--ap-text-md);
 		font-weight: 500;
+		text-align: start;
 	}
 	.ap-table-cards tbody td:is(.col-check + td, :first-child:not(.col-check))::before {
 		content: none;

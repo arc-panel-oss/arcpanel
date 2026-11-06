@@ -52,7 +52,7 @@
             <p class="ap-hint">{{ __('The package of this domain offers this profile only.') }}</p>
         @endif
         @if ($canChange)
-            <div class="ap-form-actions"><x-ap-button type="submit" variant="primary" icon="check">{{ __('Save') }}</x-ap-button></div>
+            <div class="ap-form-actions"><x-ap-button type="submit" variant="primary" icon="check">{{ __('Save version and profile') }}</x-ap-button></div>
         @endif
     </x-ap-form>
 </x-ap-card>
@@ -99,7 +99,7 @@
                     @endforeach
                 </div>
                 @if ($canSettings)
-                    <div class="ap-form-actions"><x-ap-button type="submit" variant="primary" icon="check">{{ __('Save') }}</x-ap-button></div>
+                    <div class="ap-form-actions"><x-ap-button type="submit" variant="primary" icon="check">{{ __('Save PHP settings') }}</x-ap-button></div>
                 @endif
             </x-ap-form>
             @if ($canSettings)

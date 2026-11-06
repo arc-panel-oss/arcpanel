@@ -72,7 +72,8 @@
                     @endif
                     <td data-col="package" data-label="{{ __('Package') }}">{{ $label($record->package()) }}</td>
                     <td data-col="web" data-label="{{ __('Web Domains') }}" class="col-num mono" data-sort-value="{{ $record->get('U_WEB_DOMAINS', '0') }}">
-                        {{ $record->get('U_WEB_DOMAINS', '0') }} / @if ($record->get('WEB_DOMAINS') === 'unlimited')<x-ap-inf />@else{{ $record->get('WEB_DOMAINS') }}@endif
+                        {{-- One item: the phone card spreads the children of a cell --}}
+                        <span>{{ $record->get('U_WEB_DOMAINS', '0') }} / @if ($record->get('WEB_DOMAINS') === 'unlimited')<x-ap-inf />@else{{ $record->get('WEB_DOMAINS') }}@endif</span>
                     </td>
                     <td data-col="disk" data-label="{{ __('Disk') }}" class="col-num mono" data-sort-value="{{ $record->get('U_DISK', '0') }}">{{ $size((int) $record->get('U_DISK', '0')) }}</td>
                     <td data-col="status" data-label="{{ __('Status') }}" data-sort-value="{{ $record->suspended() ? 'suspended' : 'active' }}">
