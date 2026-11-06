@@ -1721,7 +1721,7 @@ alerts_server_defaults() {
 	fi
 }
 
-# The aliases of 2.7 (spec §9): changing BACKUP_REPORT or UPGRADE_SEND_EMAIL
+# The aliases of 3.0 (spec §9): changing BACKUP_REPORT or UPGRADE_SEND_EMAIL
 # changes the administrator's email channel of backup.failed or
 # update.result. KEY VALUE; does nothing before alerts are set up.
 alerts_config_alias() {

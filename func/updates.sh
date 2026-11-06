@@ -911,7 +911,7 @@ upd_snapshot() {
 # The update.result event of E16 (docs/features/specs/2026-11-05-002-e16-
 # alerts-design.md §9): SUBJECT HTML TEXT [SEVERITY] [VERSION]. Its alert
 # rule sends the panel notification and, while UPGRADE_SEND_EMAIL is true,
-# the mail that this function sent before 2.7. Without the alert library
+# the mail that this function sent before 3.0. Without the alert library
 # the administrator still gets the panel notification.
 upd_notify_admin() {
 	local subject="$1" html="$2" text="$3" severity="${4:-info}" version="${5-}" admin

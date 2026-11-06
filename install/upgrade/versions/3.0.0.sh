@@ -1,5 +1,5 @@
 #!/bin/bash
-# ArcPanel 2.7.0 upgrade step (E20 Git Deploy,
+# ArcPanel 3.0.0 upgrade step (E20 Git Deploy,
 # docs/features/specs/2026-10-29-001-e20-git-deploy-design.md).
 # Sourced by upgrade_start_routine (func/upgrade.sh); safe to run again.
 

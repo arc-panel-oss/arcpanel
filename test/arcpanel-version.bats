@@ -21,7 +21,8 @@ setup() {
 }
 
 teardown() {
-    rm -f "$STEP_DIR/1.9.9.sh" "$STEP_DIR/90.0.1.sh" "$STEP_DIR/90.0.2.sh" "$STEP_DIR/99.0.0.sh" "$MARKER"
+    rm -f "$STEP_DIR/1.9.9.sh" "$STEP_DIR/90.0.1.sh" "$STEP_DIR/90.0.2.sh" "$STEP_DIR/99.0.0.sh" \
+        "$STEP_DIR/90.6.0.sh" "$STEP_DIR/91.0.0.sh" "$STEP_DIR/91.1.0.sh" "$MARKER"
     if [ -n "${SAVED_VERSION:-}" ]; then
         "$ARCPANEL/bin/v-change-sys-config-value" "VERSION" "$SAVED_VERSION"
     fi
@@ -109,4 +110,40 @@ teardown() {
     assert_not_exists "$MARKER"
     run grep "^VERSION=" "$ARCPANEL/conf/arcpanel.conf"
     assert_output "VERSION='$SAVED_VERSION'"
+}
+
+@test "Upgrade to a new major runs its step once, also from a pre-release of the old line" {
+    SAVED_VERSION="$VERSION"
+    source "$ARCPANEL/func/upgrade.sh"
+    BIN="$ARCPANEL/bin"
+    mkdir -p "$STEP_DIR"
+    for v in 90.6.0 91.0.0 91.1.0; do
+        echo "echo $v >> $MARKER" > "$STEP_DIR/$v.sh"
+    done
+
+    # a 90.6 server takes the step of 91.0.0 and nothing older or newer
+    VERSION="90.6.0"
+    new_version="91.0.0~alpha"
+    run upgrade_start_routine
+    assert_success
+    run cat "$MARKER"
+    assert_output "91.0.0"
+
+    # a server on a build of the renamed 90.7.0 line ran that step already
+    # under its old name; the 91.0.0 step runs again, so it must be idempotent
+    rm -f "$MARKER"
+    VERSION="90.7.0~alpha"
+    new_version="91.0.0~alpha"
+    run upgrade_start_routine
+    assert_success
+    run cat "$MARKER"
+    assert_output "91.0.0"
+
+    # once VERSION is 91.0.0~alpha, a later 91.0.0 build runs no step
+    rm -f "$MARKER"
+    VERSION="91.0.0~alpha"
+    new_version="91.0.0"
+    run upgrade_start_routine
+    assert_success
+    assert_not_exists "$MARKER"
 }

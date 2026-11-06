@@ -47,7 +47,7 @@ case $queue in
 	restart) bash $ARCPANEL/data/queue/$queue.pipe > /dev/null 2>&1 ;;
 	webstats) bash $ARCPANEL/data/queue/$queue.pipe > /dev/null 2>&1 ;;
 	# The backup and letsencrypt queues are jobs since E15: an old cron line
-	# runs the job queue until the 2.7.0 upgrade replaces it
+	# runs the job queue until the 3.0.0 upgrade replaces it
 	backup | letsencrypt) exec "$BIN/v-update-sys-jobs" ;;
 	disk) bash $ARCPANEL/data/queue/$queue.pipe > /dev/null 2>&1 ;;
 	daily)

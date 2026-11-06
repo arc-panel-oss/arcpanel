@@ -5,7 +5,7 @@
 # certificates in the letsencrypt queue, Git deploys in the deploy class.
 # The two queue pipes and v-run-queue-task are gone. This file keeps the
 # helpers of the v-schedule-* commands and the old terms of
-# v-list-user-tasks (KIND, ARGS) for one release; it goes in 2.8.
+# v-list-user-tasks (KIND, ARGS) for one release; it goes in 3.1.
 
 # shellcheck source=/usr/local/arcpanel/func/job.sh
 source "$ARCPANEL/func/job.sh"

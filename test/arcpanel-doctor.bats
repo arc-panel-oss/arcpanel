@@ -1006,11 +1006,11 @@ EOF
     assert_line --regexp ':[0-9]+/doctor$'
 }
 
-@test "Doctor: the 2.7.0 step adds the nightly cron line once" {
+@test "Doctor: the 3.0.0 step adds the nightly cron line once" {
     cron=/var/spool/cron/crontabs/arcpanelweb
     cp -p "$cron" "$FIX/crontab.save"
     sed -i '/bin\/v-run-sys-doctor/d' "$cron"
-    sed -n '/^# E17 Doctor/,/^unset upd_step_cron/p' "$BATS_TEST_DIRNAME/../install/upgrade/versions/2.7.0.sh" > "$FIX/step.sh"
+    sed -n '/^# E17 Doctor/,/^unset upd_step_cron/p' "$BATS_TEST_DIRNAME/../install/upgrade/versions/3.0.0.sh" > "$FIX/step.sh"
     run bash "$FIX/step.sh"
     run bash "$FIX/step.sh"
     run grep -c 'bin/v-run-sys-doctor' "$cron"

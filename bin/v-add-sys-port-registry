@@ -68,7 +68,7 @@ fi
 # Nightly reconciliation
 # (sed, not >>: fs.protected_regular forbids root to open another user's
 # file for appending in the sticky crontab directory)
-# Since 2.7 the ports.orphan alert rule (E16) sends the findings: the check
+# Since 3.0 the ports.orphan alert rule (E16) sends the findings: the check
 # runs without notify
 if [ -f "$CRONTAB" ] && grep -q "v-check-sys-ports notify" "$CRONTAB"; then
 	sed -i -e "s#bin/v-check-sys-ports notify#bin/v-check-sys-ports#" "$CRONTAB"

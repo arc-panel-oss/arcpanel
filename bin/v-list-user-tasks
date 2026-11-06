@@ -9,8 +9,8 @@
 # since E15 the jobs of the backup, restore, letsencrypt and deploy types,
 # in the format of the old records (KIND, ARGS). LOG is the last LINES lines
 # of the job log (default 100, at most 1000). ATTEMPTS counts the runs of a
-# task that the queue retries. Deprecated in 2.7.0 (v-list-job,
-# v-list-jobs); removed in 2.8.
+# task that the queue retries. Deprecated in 3.0.0 (v-list-job,
+# v-list-jobs); removed in 3.1.
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #

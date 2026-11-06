@@ -210,7 +210,7 @@ upgrade_send_notification_to_email() {
 	if [ -z "$ROOT_USER" ]; then
 		ROOT_USER="admin"
 	fi
-	# Since 2.7 the update.result alert rule sends it (E16 spec §9); its
+	# Since 3.0 the update.result alert rule sends it (E16 spec §9); its
 	# email channel follows UPGRADE_SEND_EMAIL
 	if [ -f "$ARCPANEL/data/alerts/.defaults" ] && [ -f "$ARCPANEL/func/alerts.sh" ]; then
 		# shellcheck source=/usr/local/arcpanel/func/alerts.sh

@@ -145,7 +145,7 @@ teardown_file() {
     done
 }
 
-@test "the 2.7.0 upgrade step replaces the queue cron lines with the job queue, once" {
+@test "the 3.0.0 upgrade step replaces the queue cron lines with the job queue, once" {
     local cron=/var/spool/cron/crontabs/arcpanelweb saved
     saved=$(mktemp)
     cp -p "$cron" "$saved"
@@ -154,7 +154,7 @@ teardown_file() {
     sed -i -e '$a*/5 * * * * sudo /usr/local/arcpanel/bin/v-update-sys-queue backup' \
         -e '$a*/5 * * * * sudo /usr/local/arcpanel/bin/v-update-sys-queue letsencrypt' "$cron"
     for i in 1 2; do
-        run lib "source $ARCPANEL/install/upgrade/versions/2.7.0.sh"
+        run lib "source $ARCPANEL/install/upgrade/versions/3.0.0.sh"
         assert_success
     done
     run grep -c 'v-update-sys-queue backup\|v-update-sys-queue letsencrypt' "$cron"

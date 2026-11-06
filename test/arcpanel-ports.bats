@@ -93,7 +93,7 @@ teardown_file() {
     assert_success
     run v-list-sys-config json
     assert_output --partial '"PORT_REGISTRY": "yes"'
-    # Since 2.7 the ports.orphan alert rule (E16) sends the findings: the
+    # Since 3.0 the ports.orphan alert rule (E16) sends the findings: the
     # nightly check runs without notify
     run grep -c "bin/v-check-sys-ports" /var/spool/cron/crontabs/arcpanelweb
     assert_output "1"

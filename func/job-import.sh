@@ -6,7 +6,7 @@
 # ArcPanel: import of the task records of 2.6 into jobs (E15 spec §9)       #
 # docs/features/specs/2026-11-05-001-e15-job-center-design.md               #
 #                                                                           #
-# The upgrade to 2.7.0 runs job_import_start: the finished records of the   #
+# The upgrade to 3.0.0 runs job_import_start: the finished records of the   #
 # nine old sources become jobs with the same IDs (their files are removed), #
 # the lines of the backup and Let's Encrypt pipes become queued jobs, and   #
 # data/jobs/.import-pending marks records that still run. v-update-sys-jobs #

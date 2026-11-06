@@ -9,7 +9,7 @@
 # 256 KB) with the next OFFSET. STATUS is running, done or failed; a running
 # task whose process is gone is reported as failed. Without a task, STATUS
 # is empty. Since E15 it reads the newest docker.engine job; deprecated in
-# 2.7.0 (read the job with v-list-job), removed in 2.8.
+# 3.0.0 (read the job with v-list-job), removed in 3.1.
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #

@@ -22337,7 +22337,7 @@ paths:
         its id, domain, process, task, STATUS (running, done or failed), exit
         code and times. A running task whose process is gone is shown as failed.
         Since E15 it reads the newest app-process.* job of USER; deprecated in
-        2.7.0 (read the job with v-list-job), removed in 2.8.
+        3.0.0 (read the job with v-list-job), removed in 3.1.
 
         **Arguments**
 
@@ -23953,8 +23953,8 @@ paths:
         (default 0, at most 256 KB) with the next OFFSET. STATUS is running, done
         or failed; a running task whose process is gone is reported, and stored,
         as failed. Without a task, STATUS is empty. Since E15 it reads the newest
-        docker.* job of the app; deprecated in 2.7.0 (read the job with
-        v-list-job), removed in 2.8.
+        docker.* job of the app; deprecated in 3.0.0 (read the job with
+        v-list-job), removed in 3.1.
 
         **Arguments**
 
@@ -26816,7 +26816,7 @@ paths:
         256 KB) with the next OFFSET. STATUS is running, done or failed; a running
         task whose process is gone is reported as failed. Without a task, STATUS
         is empty. Since E15 it reads the newest docker.engine job; deprecated in
-        2.7.0 (read the job with v-list-job), removed in 2.8.
+        3.0.0 (read the job with v-list-job), removed in 3.1.
 
         **Arguments**
 
@@ -28672,7 +28672,7 @@ paths:
         the last LINES lines of its output (default 100, at most 1000). STATUS is
         running, done or failed; a running task whose runner is gone is reported,
         and stored, as failed. Without a task, STATUS is empty.
-        Deprecated in 2.7.0: read the job with v-list-job; removed in 2.8.
+        Deprecated in 3.0.0: read the job with v-list-job; removed in 3.1.
 
         **Arguments**
 
@@ -30118,8 +30118,8 @@ paths:
         lines of its output (default 100, at most 1000). STATUS is running, done
         or failed; a running task whose process is gone is reported, and stored,
         as failed. Without a task, STATUS is empty. Since E15 it reads the newest
-        malware.scan job of USER; deprecated in 2.7.0 (read the job with
-        v-list-job), removed in 2.8.
+        malware.scan job of USER; deprecated in 3.0.0 (read the job with
+        v-list-job), removed in 3.1.
 
         **Arguments**
 
@@ -30174,8 +30174,8 @@ paths:
         START, END) and the last LINES lines of its output (default 100, at most
         1000). STATUS is running, done or failed; a running task whose process is
         gone is reported, and stored, as failed. Without a task, STATUS is empty.
-        Since E15 it reads the newest node.* job of USER; deprecated in 2.7.0
-        (read the job with v-list-job), removed in 2.8.
+        Since E15 it reads the newest node.* job of USER; deprecated in 3.0.0
+        (read the job with v-list-job), removed in 3.1.
 
         **Arguments**
 
@@ -30704,7 +30704,7 @@ paths:
         1000). STATUS is running, done or failed; a running task whose process is
         gone is reported, and stored, as failed. Without a task, STATUS is empty.
         Since E15 it reads the newest quick-install job of USER; deprecated in
-        2.7.0 (read the job with v-list-job), removed in 2.8.
+        3.0.0 (read the job with v-list-job), removed in 3.1.
 
         **Arguments**
 
@@ -31019,8 +31019,8 @@ paths:
         since E15 the jobs of the backup, restore, letsencrypt and deploy types,
         in the format of the old records (KIND, ARGS). LOG is the last LINES lines
         of the job log (default 100, at most 1000). ATTEMPTS counts the runs of a
-        task that the queue retries. Deprecated in 2.7.0 (v-list-job,
-        v-list-jobs); removed in 2.8.
+        task that the queue retries. Deprecated in 3.0.0 (v-list-job,
+        v-list-jobs); removed in 3.1.
 
         **Arguments**
 
@@ -41339,7 +41339,9 @@ paths:
         ArcPanel APT repository, or VERSION when given (the repository keeps every
         version, docs/features/specs/2026-10-20-005-e33-update-center-phase-1-design.md
         §6). Valid packages: arcpanel, arcpanel-nginx, arcpanel-php and
-        arcpanel-web-terminal. The output of apt-get is printed.
+        arcpanel-web-terminal. The output of apt-get is printed. It fails when the
+        ArcPanel APT source or its keyring is missing or apt cannot read the
+        repository, rather than report that nothing needs an update.
 
         **Arguments**
 
@@ -41390,7 +41392,9 @@ paths:
         packages only while no newer line is available, and announces a newer line
         to the administrator once per version (panel notification and, with
         UPGRADE_SEND_EMAIL, an e-mail). In auto mode the output goes to
-        $ARCPANEL/log/autoupdate.log and only an error is printed.
+        $ARCPANEL/log/autoupdate.log and only an error is printed. Both modes fail
+        when the ArcPanel APT source or its keyring is missing or apt cannot read the
+        repository; auto mode then also notifies the administrator once.
 
         **Arguments**
 
@@ -41717,7 +41721,7 @@ paths:
       description: |-
         This function runs from cron every minute: it reaps running jobs whose
         runner is gone or silent, imports the task records of the sources that
-        still wait for it (upgrade to 2.7.0), starts the queued jobs that have a
+        still wait for it (upgrade to 3.0.0), starts the queued jobs that have a
         free slot and, once an hour, deletes finished jobs older than 30 days and
         beyond 500 per user. A run that finds another one running exits.
 

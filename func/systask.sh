@@ -13,7 +13,7 @@
 
 # Since E15 a system task is a job of type sys.KIND (func/job.sh). These
 # wrappers read the newest one for the callers of the old task record
-# (func/updates.sh, v-run-sys-arcpanel-autoupdate); they go in 2.8.
+# (func/updates.sh, v-run-sys-arcpanel-autoupdate); they go in 3.1.
 
 # shellcheck source=/usr/local/arcpanel/func/job.sh
 source "$ARCPANEL/func/job.sh"

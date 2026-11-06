@@ -8,7 +8,7 @@
 # its id, domain, process, task, STATUS (running, done or failed), exit
 # code and times. A running task whose process is gone is shown as failed.
 # Since E15 it reads the newest app-process.* job of USER; deprecated in
-# 2.7.0 (read the job with v-list-job), removed in 2.8.
+# 3.0.0 (read the job with v-list-job), removed in 3.1.
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #

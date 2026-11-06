@@ -610,7 +610,7 @@ bj_admins() {
 # bj_alert_event USER OBJECT STATUS MESSAGE [REF]: the E16 event
 # backup.failed (docs/features/specs/2026-11-05-002-e16-alerts-design.md),
 # critical for a failed run, a warning for a partial one; its alert rules
-# send the panel notifications and mails this library sent before 2.7
+# send the panel notifications and mails this library sent before 3.0
 bj_alert_event() {
 	local severity=critical
 	[ "$3" = partial ] && severity=warning

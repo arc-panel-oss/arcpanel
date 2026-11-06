@@ -6,7 +6,7 @@
 #
 # This function runs from cron every minute: it reaps running jobs whose
 # runner is gone or silent, imports the task records of the sources that
-# still wait for it (upgrade to 2.7.0), starts the queued jobs that have a
+# still wait for it (upgrade to 3.0.0), starts the queued jobs that have a
 # free slot and, once an hour, deletes finished jobs older than 30 days and
 # beyond 500 per user. A run that finds another one running exits.
 
