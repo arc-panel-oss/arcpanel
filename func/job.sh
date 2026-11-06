@@ -369,13 +369,24 @@ job_active_with_key() {
 	return 1
 }
 
-# A new 14-digit ID (spec D10)
+# A new 14-digit ID (spec D10): the epoch second and a 4-digit sequence.
+# IDs only grow, so the newest job is the one with the highest ID, also
+# for jobs created in the same second (job_newest, the queue order). The
+# last ID is kept in data/jobs/.last-id under the job lock; a clock that
+# goes back or a sequence past 9999 keeps counting from the last ID.
 job_new_id() {
-	local id
-	id="$(date +%s)$(printf '%04d' $((RANDOM % 10000)))"
+	local id last='' base
+	job_lock
+	[ -s "$JOB_DIR/.last-id" ] && last=$(< "$JOB_DIR/.last-id")
+	[[ "$last" =~ ^[0-9]{14}$ ]] || last=0
+	base=$(($(date +%s) * 10000))
+	id=$((last + 1))
+	[ "$base" -gt "$last" ] && id=$base
 	while [ -e "$(job_conf "$id")" ]; do
-		id="$(date +%s)$(printf '%04d' $((RANDOM % 10000)))"
+		id=$((id + 1))
 	done
+	echo "$id" > "$JOB_DIR/.last-id"
+	job_unlock
 	echo "$id"
 }
 

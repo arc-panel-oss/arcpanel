@@ -152,6 +152,14 @@ teardown() {
     assert_failure 3
 }
 
+@test "Jobs: new IDs grow in the order the jobs are created, also within one second" {
+    # Many IDs in one go fall into the same second; each must sort after
+    # the one before, so the newest job of an object is the last created
+    run lib 'prev=0; for i in $(seq 1 200); do id=$(job_lock; job_new_id; job_unlock); [[ $id =~ ^[0-9]{14}$ ]] || { echo "bad $id"; exit 1; }; [ "$id" -gt "$prev" ] || { echo "$id after $prev"; exit 1; }; prev=$id; done; echo ok'
+    assert_success
+    assert_output ok
+}
+
 @test "Jobs: the job types of the spec are registered with their commands" {
     run lib 'for t in backup.user restore.restic letsencrypt.domain deploy.run sys.php docker.engine docker.install node.build app-process.custom quick-install malware.scan backup.job fs.fetch doctor.run doctor.fix; do echo "$t $(job_type_class $t) ${JOB_TYPE_KEY[$t]} ${JOB_TYPE_RETRY[$t]}"; done'
     assert_success
