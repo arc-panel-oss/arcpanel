@@ -9,7 +9,8 @@ import { runOnServer } from './server.js';
 
 test.describe.configure({ mode: 'serial' });
 
-const STUB_PORT = '39931';
+// Not 39931: the upload from URL spec serves its fixtures there
+const STUB_PORT = '39941';
 
 test.beforeAll(() => {
 	runOnServer(['alerts-clean', USER]);

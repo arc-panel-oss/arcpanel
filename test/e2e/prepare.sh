@@ -708,12 +708,15 @@ if (preg_match('#^/file/(\d+)#', $path, $m)) {
 PHP
 		cd "$dir" || exit 1
 		PHP_CLI_SERVER_WORKERS=8 setsid nohup "$ARCPANEL/php/bin/php" -S "127.0.0.1:$port" router.php > /dev/null 2>&1 < /dev/null &
+		# Ready when the port answers as this server: another listener on the
+		# port (a stub of another spec) would serve every download instead
 		for _ in $(seq 1 25); do
-			if ss -Hltn "sport = :$port" | grep -q .; then
+			if [ "$(curl -s --noproxy '*' --max-time 2 "http://127.0.0.1:$port/file/3")" = aaa ]; then
 				exit 0
 			fi
 			sleep 0.2
 		done
+		echo "fetch-listen: 127.0.0.1:$port does not answer as the fixture server (port taken?)" >&2
 		exit 1
 		;;
 	fetch-clean)
@@ -859,11 +862,12 @@ PHP
 		cd "$dir" || exit 1
 		setsid nohup "$ARCPANEL/php/bin/php" -S "127.0.0.1:$port" router.php > /dev/null 2>&1 < /dev/null &
 		for _ in $(seq 1 25); do
-			if ss -Hltn "sport = :$port" | grep -q .; then
+			if [ "$(curl -s --noproxy '*' --max-time 2 "http://127.0.0.1:$port/")" = ok ]; then
 				exit 0
 			fi
 			sleep 0.2
 		done
+		echo "alerts-listen: 127.0.0.1:$port does not answer as the webhook stub (port taken?)" >&2
 		exit 1
 		;;
 	alerts-posts)
