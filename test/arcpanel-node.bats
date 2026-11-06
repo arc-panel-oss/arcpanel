@@ -22,6 +22,7 @@ MIRROR=/root/arcpanel-node-mirror
 BAD_MIRROR=/root/arcpanel-node-mirror-bad
 PASS="Tn-$(date +%s)-Pass"
 USERS="tnu1 tnu2 tnu3 tnoff tnres tncust tnjail"
+FAKE_JOB=99999999999903
 
 make_package() {
     local name=$1 node=$2 versions=$3 allowed=$4 shell=${5:-bash} tmp
@@ -110,6 +111,10 @@ cleanup() {
         v-delete-user-package "$package" > /dev/null 2>&1 || true
         rm -f "$PKG_DIR/$package.tenancy"
     done
+    # The fake job of "Tasks: one task at a time". A run stopped inside that
+    # test leaves it behind, and its ID sorts above every real job, so it
+    # stays the newest task of tnu1 and breaks the task cases of the next run
+    rm -f "$ARCPANEL/data/jobs/$FAKE_JOB".*
 }
 
 setup_file() {
@@ -526,7 +531,7 @@ wait_task() {
 @test "Tasks: one task at a time; a task whose process died is failed" {
     bash -c 'exec -a v-run-job sleep 60' &
     pid=$!
-    id=99999999999903
+    id=$FAKE_JOB
     now=$(date +'%F %T')
     conf=$ARCPANEL/data/jobs/$id.conf
     echo "ID='$id' TYPE='node.install' USER='tnu1' OWNER='admin' ACTOR='cli' OBJECT='node:tnu1' ARGS='v-run-user-node-task tnu1 add-version lts' STATUS='running' EXIT='' ERROR='' UNIT='' PID='$pid' QUEUED='$now' START='$now' END='' HEARTBEAT='$now' ATTEMPTS='1' RETRY_OF='' RESOURCE='' UPDATED='$now'" > "$conf"
