@@ -64,8 +64,10 @@ test('a developer installs Uptime Kuma from the store and it answers over HTTPS'
 	await expectAccessible(page);
 	await page.getByRole('button', { name: 'Install', exact: true }).click();
 
-	// The app page follows the install task
-	await expect(page).toHaveURL(new RegExp(`/docker/${DEV}/apps/uptime-kuma$`));
+	// The app page follows the install task. The install request itself
+	// takes a few seconds (compose check, ports, the domain switched to the
+	// proxy template) before the page changes
+	await expect(page).toHaveURL(new RegExp(`/docker/${DEV}/apps/uptime-kuma$`), { timeout: 30_000 });
 	const panel = page.locator('[aria-live="polite"]', { hasText: 'Install Uptime Kuma' });
 	await expect(panel.locator('.ap-badge')).toHaveText(/Done|Failed/, { timeout: 600_000 });
 	await expect(panel.locator('.ap-badge')).toHaveText('Done');
