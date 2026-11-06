@@ -48,6 +48,7 @@ ACCOUNTS_USER="${SMOKE_USER}c"
 PHP_USER="${SMOKE_USER}p"
 MALWARE_USER="${SMOKE_USER}m"
 ALERTS_USER="${SMOKE_USER}l"
+DOCTOR_USER="${SMOKE_USER}d"
 PHP_PACKAGE="$SMOKE_PACKAGE-php"
 APPS_PACKAGE="$SMOKE_PACKAGE-apps"
 STORAGE_PACKAGE="$SMOKE_PACKAGE-s3"
@@ -56,6 +57,7 @@ ROOT_USER=$(grep "^ROOT_USER=" "$CONF" | cut -d"'" -f2)
 OLD_API_SYSTEM=$(grep "^API_SYSTEM=" "$CONF" | cut -d"'" -f2 || true)
 OLD_API_ALLOWED_IP=$(grep "^API_ALLOWED_IP=" "$CONF" | cut -d"'" -f2 || true)
 OLD_MALWARE_SCAN=$(grep "^MALWARE_SCAN=" "$CONF" | cut -d"'" -f2 || true)
+OLD_DOCTOR_RESOLVER=$(grep "^DOCTOR_RESOLVER=" "$CONF" | cut -d"'" -f2 || true)
 BODY="$(mktemp)"
 CERT_DIR="$(mktemp -d)"
 FILES_DIR="$(mktemp -d)"
@@ -80,6 +82,12 @@ cleanup() {
 	"$ARCPANEL/bin/v-delete-user" "$PHP_USER" > /dev/null 2>&1 || true
 	"$ARCPANEL/bin/v-delete-user" "$MALWARE_USER" > /dev/null 2>&1 || true
 	"$ARCPANEL/bin/v-delete-user" "$ALERTS_USER" > /dev/null 2>&1 || true
+	"$ARCPANEL/bin/v-delete-user" "$DOCTOR_USER" > /dev/null 2>&1 || true
+	if [ -n "$OLD_DOCTOR_RESOLVER" ]; then
+		"$ARCPANEL/bin/v-change-sys-config-value" DOCTOR_RESOLVER "$OLD_DOCTOR_RESOLVER" > /dev/null 2>&1 || true
+	else
+		sed -i '/^DOCTOR_RESOLVER=/d' "$CONF"
+	fi
 	if [ "$OLD_MALWARE_SCAN" = yes ]; then
 		"$ARCPANEL/bin/v-add-sys-malware-scan" quiet
 	else
@@ -1199,6 +1207,34 @@ check "the server has the disk.usage rule" 1 "$(json '[.data[] | select(.rule ==
 check "listSystemAlertChannels answers 200" 200 "$(call "$ADMIN" GET /system/alert-channels)"
 check "listSystemAlertHistory answers 200" 200 "$(call "$ADMIN" GET '/system/alert-history?limit=10')"
 check "the alerts user is deleted" 204 "$(call "$ADMIN" DELETE "/users/$ALERTS_USER")"
+
+# Doctor (E17 spec §6): the domain checks of an account with a key holding
+# only v2-security, the server checks for the administrator. The resolver is
+# TEST-NET while the smoke runs, so no check asks the internet.
+"$ARCPANEL/bin/v-change-sys-config-value" DOCTOR_RESOLVER 192.0.2.1 > /dev/null
+DOCTOR="/users/$DOCTOR_USER"
+DOCTOR_DOMAIN="$DOCTOR_USER.example"
+check "a user for the Doctor" 201 "$(call "$ADMIN" POST /users "{\"username\": \"$DOCTOR_USER\", \"password\": \"$SMOKE_PASS\", \"email\": \"$DOCTOR_USER@example.invalid\", \"name\": \"Smoke doctor\", \"package\": \"default\"}")"
+"$ARCPANEL/bin/v-add-web-domain" "$DOCTOR_USER" "$DOCTOR_DOMAIN" > /dev/null
+DOCTOR_KEY="$(new_key "$DOCTOR_USER" v2-security)"
+check "listDoctorDomains answers 200 with a key holding only v2-security" 200 "$(call "$DOCTOR_KEY" GET "$DOCTOR/doctor")"
+check "the domain is listed, not checked yet" "$DOCTOR_DOMAIN null" "$(json '"\(.data[0].domain) \(.data[0].checked_at)"')"
+check "runDoctorDomain dry run plans v-run-sys-doctor" "200 v-run-sys-doctor" "$(call "$DOCTOR_KEY" POST "$DOCTOR/doctor/$DOCTOR_DOMAIN/run?dry_run=1") $(json '.data.steps[0].command')"
+check "a v2-read key may not run the Doctor" 403 "$(call "$(new_key "$DOCTOR_USER" v2-read)" POST "$DOCTOR/doctor/$DOCTOR_DOMAIN/run")"
+doctor_headers="$(mktemp)"
+check "runDoctorDomain answers 202" 202 "$(curl -sk -o "$BODY" -D "$doctor_headers" -w '%{http_code}' -X POST -H "Authorization: Bearer $DOCTOR_KEY" -H 'Accept: application/json' -H 'Content-Type: application/json' -d '{}' "$API$DOCTOR/doctor/$DOCTOR_DOMAIN/run")"
+check "the task is a doctor.run job" doctor.run "$(json .data.kind)"
+doctor_task="$(json .data.id)"
+check "runDoctorDomain sends Link rel=monitor" 1 "$(grep -ci 'link:.*tasks/.*rel="monitor"' "$doctor_headers")"
+rm -f "$doctor_headers"
+wait_v2_task "$DOCTOR_KEY" "$doctor_task" 300
+check "getDoctorDomain answers the 7 web checks" "200 7" "$(call "$DOCTOR_KEY" GET "$DOCTOR/doctor/$DOCTOR_DOMAIN") $(json '.data.checks | length')"
+check "the DNS checks skip: the resolver does not answer" skip "$(json '.data.checks[] | select(.id == "web.dns-a") | .status')"
+check "a check without a fix answers 409" "409 E_EXISTS" "$(call "$DOCTOR_KEY" POST "$DOCTOR/doctor/$DOCTOR_DOMAIN/checks/web.dns-a/fix") $(json .error.code)"
+check "the v2-security key may not read the server checks" 403 "$(call "$DOCTOR_KEY" GET /system/doctor)"
+check "getSystemDoctor answers 200 for the administrator" 200 "$(call "$ADMIN" GET /system/doctor)"
+check "runSystemDoctor dry run plans v-run-sys-doctor" "200 v-run-sys-doctor" "$(call "$ADMIN" POST '/system/doctor/run?dry_run=1') $(json '.data.steps[0].command')"
+check "the Doctor user is deleted" 204 "$(call "$ADMIN" DELETE "/users/$DOCTOR_USER")"
 
 if [ "$failures" -gt 0 ]; then
 	echo "$failures check(s) failed"

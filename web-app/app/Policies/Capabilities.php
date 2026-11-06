@@ -187,6 +187,12 @@ final class Capabilities
         'alerts.view' => self::ALL_ROLES,
         'alerts.manage' => self::ALL_ROLES,
 
+        // Server and Site Doctor (E17 spec §5): the domains of an account;
+        // the server checks need server.view to read and server.settings to
+        // run or fix
+        'doctor.view' => self::ALL_ROLES,
+        'doctor.run' => self::ALL_ROLES,
+
         // Server pages of E7 batch 3 (spec §5.1)
         'server.services' => self::ADMIN,
         'server.settings' => self::ADMIN,

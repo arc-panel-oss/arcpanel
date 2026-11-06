@@ -13,11 +13,13 @@ use App\Http\Requests\WebDomains\RedirectRequest;
 use App\Http\Requests\WebDomains\SslRequest;
 use App\Http\Requests\WebDomains\StatsRequest;
 use App\Policies\AppProcessPolicy;
+use App\Policies\DoctorPolicy;
 use App\Policies\FilePolicy;
 use App\Policies\WebDomainPolicy;
 use App\Services\AppProcesses\AppProcess;
 use App\Services\AppProcesses\AppProcessService;
 use App\Services\Deploy\DeployService;
+use App\Services\Doctor\DoctorStore;
 use App\Services\Mail\CredentialsMailer;
 use App\Services\Php\PhpManager;
 use App\Services\Tasks\TaskService;
@@ -49,7 +51,7 @@ final class WebDomainEditController extends Controller
         private readonly TemplateCatalog $catalog,
     ) {}
 
-    public function edit(string $user, string $domain, Principal $principal, WebDomainPolicy $policy, SysConfig $config, UserDirectory $directory, TemplateForm $form, FilePolicy $files, PhpManager $php, WebDomainActions $actions, AppProcessService $appProcesses, AppProcessPolicy $processPolicy, DeployService $deploy, TaskService $tasks): View
+    public function edit(string $user, string $domain, Principal $principal, WebDomainPolicy $policy, SysConfig $config, UserDirectory $directory, TemplateForm $form, FilePolicy $files, PhpManager $php, WebDomainActions $actions, AppProcessService $appProcesses, AppProcessPolicy $processPolicy, DeployService $deploy, TaskService $tasks, DoctorPolicy $doctorPolicy, DoctorStore $doctor): View
     {
         abort_unless($policy->view($principal, $user), 403);
         $record = $this->web->find($user, $domain);
@@ -108,6 +110,7 @@ final class WebDomainEditController extends Controller
             'phpSettings' => $domainPhp !== null && $domainPhp['version'] !== '' ? $php->settings($user, $domain) : null,
             'appProcesses' => $this->appProcessesTab($user, $domain, $principal, $appProcesses, $processPolicy),
             'deploy' => $this->deployTab($user, $domain, $can, $deploy, $tasks),
+            'doctor' => $this->doctorTab($user, $domain, $principal, $doctorPolicy, $doctor),
         ]);
     }
 
@@ -143,6 +146,26 @@ final class WebDomainEditController extends Controller
             'running' => $running !== null && in_array($running['task']['status'], ['running', 'queued'], true) ? $running : null,
             'canChange' => $can['deploy'] ?? false,
         ];
+    }
+
+    /**
+     * The Doctor tab (E17 spec §5): the web and mail checks of the domain;
+     * null without doctor.view or when the result cannot be read.
+     *
+     * @return array{result: array{checked_at: ?string, score: ?int, checks: list<array<string, mixed>>}, canRun: bool}|null
+     */
+    private function doctorTab(string $user, string $domain, Principal $principal, DoctorPolicy $policy, DoctorStore $doctor): ?array
+    {
+        if (! $policy->view($principal, $user)) {
+            return null;
+        }
+        try {
+            $result = $doctor->domain($user, $domain);
+        } catch (ArcCommandException) {
+            return null;
+        }
+
+        return ['result' => $result, 'canRun' => $policy->run($principal, $user)];
     }
 
     /**

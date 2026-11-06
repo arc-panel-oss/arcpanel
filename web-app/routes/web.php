@@ -29,6 +29,7 @@ use App\Http\Controllers\Dns\DnsRecordController;
 use App\Http\Controllers\Docker\DockerAppController;
 use App\Http\Controllers\Docker\DockerAppPageController;
 use App\Http\Controllers\Docker\DockerEngineController;
+use App\Http\Controllers\Doctor\DoctorController;
 use App\Http\Controllers\Files\FileController;
 use App\Http\Controllers\Files\FileFetchController;
 use App\Http\Controllers\Files\FilePageController;
@@ -361,6 +362,27 @@ Route::middleware('auth.arc')->group(function () {
             Route::put('/channels/{id}', [AlertController::class, 'updateChannel'])->where('id', '\d{14}')->defaults('user', 'system')->name('.channels.update');
             Route::delete('/channels/{id}', [AlertController::class, 'destroyChannel'])->where('id', '\d{14}')->defaults('user', 'system')->name('.channels.destroy');
             Route::post('/channels/{id}/test', [AlertController::class, 'testChannel'])->where('id', '\d{14}')->defaults('user', 'system')->name('.channels.test');
+        });
+    });
+
+    // Server and Site Doctor (E17 spec §5): the server checks, the domains
+    // of an account and the checks of one domain
+    Route::prefix('server/doctor')->name('server.doctor')->group(function () {
+        Route::get('/', [DoctorController::class, 'server'])->name('');
+        Route::middleware('not-readonly')->group(function () {
+            Route::post('/run', [DoctorController::class, 'serverRun'])->name('.run');
+            Route::post('/checks/{check}/fix', [DoctorController::class, 'serverFix'])->where('check', 'server\.[a-z0-9-]{1,64}')->name('.fix');
+        });
+    });
+    Route::get('/doctor', [DoctorController::class, 'entry'])->name('doctor.index');
+    Route::prefix('doctor/{user}')->name('doctor.')->middleware('effective-user')->group(function () {
+        Route::get('/', [DoctorController::class, 'show'])->name('show');
+        Route::get('/{domain}', [DoctorController::class, 'domain'])->where('domain', '[^/]*\.[^/]*')->name('domain');
+        Route::middleware('not-readonly')->group(function () {
+            Route::post('/run', [DoctorController::class, 'run'])->name('run');
+            Route::post('/{domain}/run', [DoctorController::class, 'domainRun'])->where('domain', '[^/]*\.[^/]*')->name('domain.run');
+            Route::post('/{domain}/checks/{check}/fix', [DoctorController::class, 'domainFix'])
+                ->where(['domain' => '[^/]*\.[^/]*', 'check' => '(web|mail)\.[a-z0-9-]{1,64}'])->name('domain.fix');
         });
     });
 

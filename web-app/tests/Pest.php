@@ -375,6 +375,8 @@ function fakeWebDomains(ArcCommandFake $fake): void
     // Git Deploy of the Deploy tab (E20): off, and allowed by the package
     $fake->on('v-list-web-domain-deploy')->using(fn (array $args) => [0, json_encode([$args[1] => deployRow()])]);
     $fake->on('v-list-web-domain-deploys')->returnsJson(['releases' => [], 'tasks' => []]);
+    // The Doctor tab of the edit page (E17)
+    $fake->on('v-list-sys-doctor')->returnsJson(['checked_at' => null, 'score' => null, 'checks' => []]);
     $fake->on('v-list-sys-deploy')->returnsJson(['DEPLOY_PORT' => '8088', 'DEPLOY_MAX_ARTIFACT' => '512M', 'DEPLOY_BUILD_TIMEOUT' => '900',
         'DEPLOY_OIDC_ISSUERS' => 'https://token.actions.githubusercontent.com,https://gitlab.com', 'DOMAINS' => '0', 'PORT_OPEN' => 'no']);
     $fake->on('v-delete-web-domain-tpl-vars')->returns();
@@ -1133,4 +1135,54 @@ function alertLine(string $event, string $id, array $keys = []): array
         'rule' => 'disk.usage', 'object' => 'mount:/home', 'severity' => 'warning', 'value' => '91%', 'message' => '[WARNING] Disk usage: mount:/home on host',
         'since' => '2026-11-06 09:55:00', 'count' => 1,
         'deliveries' => [['channel' => '17900000000001', 'name' => 'Panel', 'type' => 'panel', 'result' => 'sent', 'error' => '']]], $keys);
+}
+
+/*
+| Doctor (E17): results of v-list-sys-doctor for the pages and the API tests
+*/
+
+/** A check of a Doctor result. */
+function doctorCheck(string $id, string $status, array $keys = []): array
+{
+    return array_replace(['id' => $id, 'status' => $status, 'title' => 'Title of '.$id, 'message' => 'Message of '.$id,
+        'value' => '', 'docs' => '/docs/guides/doctor#'.str_replace('.', '-', $id), 'fix' => null, 'link' => ''], $keys);
+}
+
+/**
+ * `v-list-sys-doctor` of the fixtures: the server, bob.example of bob (an
+ * alias missing from the certificate), carol.example of carol (not checked
+ * yet); the summaries of bob and carol.
+ */
+function fakeDoctor(ArcCommandFake $fake): void
+{
+    $server = ['checked_at' => '2026-11-06 04:40:12', 'score' => 75, 'checks' => [
+        doctorCheck('server.fail2ban', 'fail', ['message' => 'The Fail2ban service is not running.',
+            'fix' => ['label' => 'Restart Fail2ban', 'command' => 'v-restart-service fail2ban', 'argv' => ['v-restart-service', 'fail2ban']]]),
+        doctorCheck('server.panel-port', 'warn'),
+        doctorCheck('server.time-sync', 'ok'),
+        doctorCheck('server.docker', 'skip'),
+    ]];
+    $bob = ['checked_at' => '2026-11-06 04:41:00', 'score' => 80, 'checks' => [
+        doctorCheck('web.ssl-aliases', 'fail', ['message' => 'www.bob.example is not in the certificate.',
+            'fix' => ['label' => "Request a Let's Encrypt certificate", 'command' => 'v-add-letsencrypt-domain bob bob.example www.bob.example',
+                'argv' => ['v-add-letsencrypt-domain', 'bob', 'bob.example', 'www.bob.example']]]),
+        doctorCheck('web.dns-a', 'ok', ['link' => 'dns']),
+        doctorCheck('mail.dmarc', 'warn'),
+    ]];
+    $empty = ['checked_at' => null, 'score' => null, 'checks' => []];
+    $summary = [
+        'bob' => [['user' => 'bob', 'domain' => 'bob.example', 'checked_at' => '2026-11-06 04:41:00', 'score' => 80, 'fail' => 1, 'warn' => 1, 'failing' => ['web.ssl-aliases']]],
+        'carol' => [['user' => 'carol', 'domain' => 'carol.example', 'checked_at' => null, 'score' => null, 'fail' => 0, 'warn' => 0, 'failing' => []]],
+    ];
+    $fake->on('v-list-sys-doctor')->using(function (array $a) use ($server, $bob, $empty, $summary) {
+        $data = match (true) {
+            $a[0] === 'system' => $server,
+            $a[0] === 'all' => [...$summary['carol'], ...$summary['bob']],
+            count($a) === 3 && $a[0] === 'bob' && $a[1] === 'bob.example' => $bob,
+            count($a) === 3 => $empty,
+            default => $summary[$a[0]] ?? [],
+        };
+
+        return [0, (string) json_encode($data)];
+    });
 }

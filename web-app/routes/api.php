@@ -16,6 +16,7 @@ use App\Http\Controllers\Api\V2\DnsController;
 use App\Http\Controllers\Api\V2\DockerAppController;
 use App\Http\Controllers\Api\V2\DockerCatalogController;
 use App\Http\Controllers\Api\V2\DockerEngineController;
+use App\Http\Controllers\Api\V2\DoctorController;
 use App\Http\Controllers\Api\V2\FileController;
 use App\Http\Controllers\Api\V2\FileFetchController;
 use App\Http\Controllers\Api\V2\FileTransferController;
@@ -109,6 +110,16 @@ Route::get('/audit/verify', [AuditController::class, 'verify'])->name('audit.ver
 // Malware scan summary of the principal's tree (E25 batch 1 spec §9)
 Route::get('/malware', [MalwareController::class, 'summary'])->middleware('sys-config:MALWARE_SCAN=yes')->name('malware.summary');
 Route::get('/access-key-sets', [AccessKeyController::class, 'sets'])->name('access-key-sets.index');
+
+// Doctor of the server (E17 spec §6): administrators read the server
+// checks, run them and fix them
+Route::prefix('/system/doctor')->name('system.doctor.')->group(function () {
+    Route::get('/', [DoctorController::class, 'system'])->name('show');
+    Route::middleware('not-readonly')->group(function () {
+        Route::post('/run', [DoctorController::class, 'runSystem'])->name('run');
+        Route::post('/checks/{check}/fix', [DoctorController::class, 'fixSystem'])->where('check', 'server\.[a-z0-9-]{1,64}')->name('fix');
+    });
+});
 
 // Docker catalog (E34 batch 4 spec §4.3, D44)
 Route::get('/docker-catalog', [DockerCatalogController::class, 'index'])->defaults('api_area', 'apps')->name('docker-catalog.index');
@@ -345,6 +356,16 @@ Route::middleware('effective-user')->group(function () {
         Route::put('/users/{user}/alert-channels/{id}', [AlertController::class, 'updateChannel'])->where('id', '\d{14}')->name('alert-channels.update');
         Route::delete('/users/{user}/alert-channels/{id}', [AlertController::class, 'destroyChannel'])->where('id', '\d{14}')->name('alert-channels.destroy');
         Route::post('/users/{user}/alert-channels/{id}/test', [AlertController::class, 'testChannel'])->where('id', '\d{14}')->name('alert-channels.test');
+    });
+
+    // Doctor of the domains of an account (E17 spec §6)
+    Route::get('/users/{user}/doctor', [DoctorController::class, 'index'])->name('doctor.index');
+    Route::get('/users/{user}/doctor/{domain}', [DoctorController::class, 'show'])->where('domain', '[^/]*\.[^/]*')->name('doctor.show');
+    Route::middleware('not-readonly')->group(function () {
+        Route::post('/users/{user}/doctor/run', [DoctorController::class, 'runUser'])->name('doctor.run');
+        Route::post('/users/{user}/doctor/{domain}/run', [DoctorController::class, 'runDomain'])->where('domain', '[^/]*\.[^/]*')->name('doctor.domain.run');
+        Route::post('/users/{user}/doctor/{domain}/checks/{check}/fix', [DoctorController::class, 'fixDomain'])
+            ->where(['domain' => '[^/]*\.[^/]*', 'check' => '(web|mail)\.[a-z0-9-]{1,64}'])->name('doctor.fix');
     });
 
     // Secret store of a user (E38 spec §8); {name} is the secret name, with or
@@ -709,6 +730,8 @@ foreach (Route::getRoutes() as $route) {
         str_contains($uri, '/secrets') => 'secrets',
         str_contains($uri, '/buckets'), str_contains($uri, '/s3-keys') => 'storage',
         str_contains($uri, '/malware') => 'security',
+        // The Doctor of an account's domains (E17 spec §6); the server's is server
+        str_starts_with($uri, 'api/v2/users/{user}/doctor') => 'security',
         str_contains($uri, '/dns-zones') => 'dns',
         str_contains($uri, '/mail-domains') => 'mail',
         str_contains($uri, '/databases') => 'db',

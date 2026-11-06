@@ -63,6 +63,9 @@ final class ObjectMap
         'deploy.id' => 'deploy',
         'dns.domain' => 'dns_domain',
         'dns-zones.domain' => 'dns_domain',
+        // Doctor (E17 §5, §6): the domain of a run, the check of a fix
+        'doctor.domain' => 'doctor_domain',
+        'doctor.check' => 'doctor_check',
         'dns-zones.id' => 'dns_record',
         'docker.name' => 'docker_app',
         'docker-apps.name' => 'docker_app',

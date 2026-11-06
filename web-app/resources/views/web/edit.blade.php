@@ -13,6 +13,7 @@
         'php' => $php !== null ? __('PHP') : null,
         'processes' => $appProcesses !== null ? __('App processes') : null,
         'deploy' => $deploy !== null ? __('Deploy') : null,
+        'doctor' => $doctor !== null ? __('Doctor') : null,
         'stats' => __('Statistics'),
     ]);
     $locked = ! $can['update'];
@@ -236,6 +237,27 @@
         @if ($deploy !== null)
             <x-ap-tab-panel name="deploy">
                 @include('web.partials.deploy')
+            </x-ap-tab-panel>
+        @endif
+
+        {{-- Doctor (E17) --}}
+        @if ($doctor !== null)
+            <x-ap-tab-panel name="doctor">
+                <x-ap-card>
+                    <div class="ap-row" data-doctor-score="{{ $doctor['result']['score'] ?? '' }}">
+                        <span>{{ $doctor['result']['score'] !== null ? __('Score :score', ['score' => $doctor['result']['score']]) : __('No score') }}</span>
+                        <span class="muted">{{ $doctor['result']['checked_at'] !== null ? __('Checked :time', ['time' => $doctor['result']['checked_at']]) : __('Never checked') }}</span>
+                        @if ($doctor['canRun'])
+                            <x-ap-button size="sm" icon="refresh" :form-action="route('doctor.domain.run', $params)">{{ __('Run now') }}</x-ap-button>
+                        @endif
+                        <x-ap-button variant="ghost" size="sm" :href="route('doctor.domain', $params)">{{ __('Doctor page') }}<x-ap-icon name="chevron-right" /></x-ap-button>
+                    </div>
+                </x-ap-card>
+                @include('doctor.partials.checks', [
+                    'result' => $doctor['result'],
+                    'fixUrl' => $doctor['canRun'] ? fn (string $check) => route('doctor.domain.fix', [...$params, 'check' => $check]) : null,
+                    'links' => ['dns' => route('dns.records.index', $params), 'php' => '#php'],
+                ])
             </x-ap-tab-panel>
         @endif
 

@@ -54,6 +54,13 @@
 #                                 alerts-posts PORT prints the count,
 #                                 alerts-clean USER deletes the channels of
 #                                 USER and of the server named E2E* (E16)
+#   prepare.sh doctor             the web domain e2e-doctor.example of
+#                                 arce2euser with the alias www., a
+#                                 self-signed certificate without it and a
+#                                 Doctor result; DOCTOR_RESOLVER points to
+#                                 TEST-NET so no run asks the internet;
+#                                 doctor-clean deletes the domain and
+#                                 restores the resolver (E17)
 #   prepare.sh backups            a local restic repository (when the server
 #                                 has none), a web domain, ~/tmp/e2e-note.txt,
 #                                 one tar backup and one snapshot for
@@ -869,6 +876,40 @@ PHP
 				"$B/v-delete-alert-channel" "$scope" "$id" > /dev/null 2>&1 || true
 			done
 		done
+		exit 0
+		;;
+	doctor)
+		domain=e2e-doctor.example
+		"$B/v-delete-web-domain" arce2euser "$domain" > /dev/null 2>&1 || true
+		"$B/v-add-web-domain" arce2euser "$domain" '' yes "www.$domain" > /dev/null
+		dir=$(mktemp -d)
+		openssl req -x509 -newkey rsa:2048 -nodes -days 30 -subj "/CN=$domain" -addext "subjectAltName=DNS:$domain" \
+			-keyout "$dir/$domain.key" -out "$dir/$domain.crt" > /dev/null 2>&1
+		"$B/v-add-web-domain-ssl" arce2euser "$domain" "$dir" > /dev/null
+		rm -rf "$dir"
+		if [ ! -f /root/.arce2e-doctor-resolver ]; then
+			grep -m1 '^DOCTOR_RESOLVER=' "$ARCPANEL/conf/arcpanel.conf" > /root/.arce2e-doctor-resolver || true
+		fi
+		"$B/v-change-sys-config-value" DOCTOR_RESOLVER 192.0.2.1 > /dev/null
+		# NGINX reloads in the background
+		for _ in $(seq 1 40); do
+			timeout 5 openssl s_client -connect "$(domain_ip "$domain"):443" -servername "$domain" < /dev/null 2> /dev/null | grep -q "CN *= *$domain" && break
+			sleep 0.5
+		done
+		"$B/v-run-sys-doctor" arce2euser "$domain" cli now > /dev/null
+		"$B/v-run-sys-doctor" system "" cli now > /dev/null
+		exit 0
+		;;
+	doctor-clean)
+		"$B/v-delete-web-domain" arce2euser e2e-doctor.example > /dev/null 2>&1 || true
+		if [ -f /root/.arce2e-doctor-resolver ]; then
+			if [ -s /root/.arce2e-doctor-resolver ]; then
+				"$B/v-change-sys-config-value" DOCTOR_RESOLVER "$(cut -d\' -f2 /root/.arce2e-doctor-resolver)" > /dev/null
+			else
+				sed -i '/^DOCTOR_RESOLVER=/d' "$ARCPANEL/conf/arcpanel.conf"
+			fi
+			rm -f /root/.arce2e-doctor-resolver
+		fi
 		exit 0
 		;;
 	jobs-failed)

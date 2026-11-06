@@ -371,6 +371,7 @@ it('declares an area on the batch 1 routes', function () {
             str_starts_with($uri, 'api/v2/alerts'), str_starts_with($uri, 'api/v2/users/{user}/alert') => 'alerts',
             str_contains($uri, '/secrets') => 'secrets',
             str_contains($uri, '/malware') => 'security',
+            str_starts_with($uri, 'api/v2/users/{user}/doctor') => 'security',
             str_contains($uri, '/dns-zones') => 'dns',
             str_contains($uri, '/mail-domains') => 'mail',
             str_contains($uri, '/databases') => 'db',

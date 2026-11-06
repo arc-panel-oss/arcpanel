@@ -133,6 +133,8 @@ final class Navigation
                 ['route' => 'audit.index', 'label' => 'Audit log', 'icon' => 'history', 'cap' => 'audit.verify', 'section' => 'audit.'],
                 // Alerts of the server (E16 spec §7)
                 ['route' => 'server.alerts', 'label' => 'Alerts', 'icon' => 'bell', 'cap' => 'server.view', 'section' => 'server.alerts'],
+                // Doctor of the server and every domain (E17 spec §5)
+                ['route' => 'server.doctor', 'label' => 'Doctor', 'icon' => 'check-circle', 'cap' => 'server.view', 'section' => 'server.doctor'],
                 ['hub' => 'updates', 'label' => 'Updates', 'icon' => 'refresh', 'children' => [
                     ['route' => 'server.updates', 'label' => 'Updates', 'tab' => 'ArcPanel', 'icon' => 'refresh', 'cap' => 'server.updates', 'section' => 'server.updates',
                         'tabs' => ['server.updates']],
@@ -148,6 +150,8 @@ final class Navigation
                 ['route' => 'jobs.index', 'label' => 'Jobs', 'icon' => 'activity', 'cap' => 'tasks.view', 'section' => 'jobs.'],
                 // Alerts and channels of the account (E16 spec §7)
                 ['route' => 'alerts.index', 'label' => 'Alerts', 'icon' => 'bell', 'cap' => 'alerts.view', 'section' => 'alerts.'],
+                // Doctor of the account's domains (E17 spec §5)
+                ['route' => 'doctor.index', 'label' => 'Doctor', 'icon' => 'check-circle', 'cap' => 'doctor.view', 'section' => 'doctor.'],
                 ['route' => 'logs.index', 'label' => 'Logs', 'icon' => 'file', 'cap' => 'logs.view', 'policy' => 'POLICY_USER_VIEW_LOGS', 'section' => 'logs.'],
                 ['route' => 'stats.index', 'label' => 'Statistics', 'icon' => 'trend', 'cap' => 'stats.view', 'section' => 'stats.'],
                 ['hub' => 'keys', 'label' => 'Keys', 'icon' => 'key', 'children' => [
