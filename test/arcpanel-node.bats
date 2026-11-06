@@ -63,6 +63,10 @@ build_mirrors() {
         curl -sSfL -o "$MIRROR/index.json" https://nodejs.org/dist/index.json
         curl -sSfL -o "$MIRROR/schedule.json" https://raw.githubusercontent.com/nodejs/Release/main/schedule.json
     fi
+    # The suite expects Node.js 24 to be the newest LTS (Krypton). Node.js 26 became LTS on
+    # 2026-10-28, so the mirror keeps majors up to 24 only: "lts" resolves to the mirrored v24
+    jq -c '[.[] | select((.version | ltrimstr("v") | split(".")[0] | tonumber? // 999) <= 24)]' \
+        "$MIRROR/index.json" > "$MIRROR/index.json.tmp" && mv -f "$MIRROR/index.json.tmp" "$MIRROR/index.json"
     if [ ! -s "$MIRROR/nvm.tar.gz" ]; then
         cp "$CACHE/nvm-"*.tar.gz "$MIRROR/nvm.tar.gz" 2> /dev/null \
             || curl -sSfL -o "$MIRROR/nvm.tar.gz" https://github.com/nvm-sh/nvm/archive/refs/tags/v0.40.8.tar.gz
@@ -168,6 +172,29 @@ setup() {
     run v-list-sys-node-releases
     assert_success
     assert_line --partial "MAJOR"
+}
+
+@test "Releases: a pre-release in the index is left out (v27.0.0-alpha.0.0.0, 2026-10-29)" {
+    local pre=/root/arcpanel-node-mirror-pre arch
+    arch=linux-$(node_arch_name)
+    rm -rf "$pre"
+    mkdir -p "$pre"
+    cp "$MIRROR/schedule.json" "$pre/"
+    jq -c --arg a "$arch" '[{version: "v99.0.0-alpha.1", date: "2026-10-29", files: [$a], lts: false, security: false}] + .' \
+        "$MIRROR/index.json" > "$pre/index.json"
+    use_mirror "$pre"
+    run v-update-sys-node-releases
+    assert_success
+    run v-list-sys-node-releases json
+    assert_success
+    echo "$output" | jq -e --arg v "$V24" '.RELEASES[] | select(.MAJOR == "24") | .LATEST == $v'
+    echo "$output" | jq -e '[.RELEASES[] | select(.MAJOR == "99")] | length == 0'
+    run bash -c "source /etc/arcpanel/arcpanel.conf; source $ARCPANEL/func/main.sh; source $ARCPANEL/func/node.sh; source_conf $CONF; node_resolve 24"
+    assert_success
+    assert_output "$V24"
+    use_mirror "$MIRROR"
+    v-update-sys-node-releases > /dev/null
+    rm -rf "$pre"
 }
 
 @test "Releases: an unreachable server keeps the old index" {
