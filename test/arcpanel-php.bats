@@ -175,6 +175,25 @@ stub_repository() {
     assert_line --partial 'VERSION'
 }
 
+@test "v-list-sys-php-versions: USED_BY names the web domains of each version" {
+    default=$(php -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;')
+    other=$(php_lib php_installed_versions | grep -vx "$default" | tail -n 1)
+    [ -n "$other" ] || skip "needs a second installed PHP version"
+    v-add-web-domain $U1 e41b.example > /dev/null
+    v-change-web-domain-backend-tpl $U1 e41b.example "PHP-${other/./_}" > /dev/null
+    run bash -c "v-list-sys-php-versions json | jq -r '.\"$default\".USED_BY'"
+    assert_output --partial "$U1/$D1"
+    refute_output --partial "$U1/e41b.example"
+    run bash -c "v-list-sys-php-versions json | jq -r '.\"$other\".USED_BY'"
+    assert_output --partial "$U1/e41b.example"
+    # The list agrees with php_used_by (which v-delete-web-php uses) for every version
+    json=$(v-list-sys-php-versions json)
+    for v in $(jq -r 'keys[]' <<< "$json"); do
+        assert_equal "$(jq -r --arg v "$v" '.[$v].USED_BY' <<< "$json")" "$(php_lib "php_used_by $v | paste -sd, -")"
+    done
+    v-delete-web-domain $U1 e41b.example > /dev/null
+}
+
 @test "v-add-web-php: installs an available version" {
     run v-add-web-php $PHP_TEST
     assert_success

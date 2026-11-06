@@ -49,7 +49,10 @@ if [ "${#packages[@]}" -gt 0 ]; then
 fi
 
 default=$(php_default_version)
-json='{}'
+# One pass over the web domains and one jq call for the whole list
+php_used_by_load "$default"
+PHP_TODAY=$(date +%F)
+rows=''
 for version in $versions; do
 	installed=no
 	extensions=0
@@ -69,14 +72,16 @@ for version in $versions; do
 	if php_version_available "$version"; then
 		available=yes
 	fi
-	used_by=$(php_used_by "$version" | paste -sd, -)
-	json=$(jq -c --arg v "$version" --arg i "$installed" --arg d "$is_default" --arg u "$used_by" \
-		--arg s "$(php_version_status "$version")" --arg r "$(php_catalog_get "$version" RELEASED)" \
-		--arg a "$(php_catalog_get "$version" ACTIVE_UNTIL)" --arg e "$(php_catalog_get "$version" EOL)" \
-		--arg n "$installable" --arg av "$available" --arg x "$extensions" \
-		'. + {($v): {INSTALLED: $i, DEFAULT: $d, USED_BY: $u, STATUS: $s, RELEASED: $r,
-			ACTIVE_UNTIL: $a, EOL: $e, INSTALLABLE: $n, AVAILABLE: $av, EXTENSIONS: $x}}' <<< "$json")
+	used_by=${PHP_USED_BY[$version]-}
+	used_by=${used_by%$'\n'}
+	used_by=${used_by//$'\n'/,}
+	rows+="$version"$'\t'"$installed"$'\t'"$is_default"$'\t'"$used_by"$'\t'"$(php_version_status "$version")"
+	rows+=$'\t'"$(php_catalog_get "$version" RELEASED)"$'\t'"$(php_catalog_get "$version" ACTIVE_UNTIL)"
+	rows+=$'\t'"$(php_catalog_get "$version" EOL)"$'\t'"$installable"$'\t'"$available"$'\t'"$extensions"$'\n'
 done
+json=$(printf '%s' "$rows" | jq -Rnc '[inputs | split("\t") | {key: .[0], value: {INSTALLED: .[1], DEFAULT: .[2],
+	USED_BY: .[3], STATUS: .[4], RELEASED: .[5], ACTIVE_UNTIL: .[6], EOL: .[7], INSTALLABLE: .[8],
+	AVAILABLE: .[9], EXTENSIONS: .[10]}}] | from_entries')
 
 case "$format" in
 	json) jq . <<< "$json" ;;

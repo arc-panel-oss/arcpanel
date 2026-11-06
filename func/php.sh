@@ -96,7 +96,8 @@ php_version_installable() {
 # version the catalog does not list
 php_version_status() {
 	local today active eol
-	today=$(date +%F)
+	# A list of every version sets PHP_TODAY once
+	today=${PHP_TODAY:-$(date +%F)}
 	active=$(php_catalog_get "$1" ACTIVE_UNTIL)
 	eol=$(php_catalog_get "$1" EOL)
 	if [ -z "$eol" ]; then
@@ -145,6 +146,9 @@ php_default_version() {
 php_backend_version() {
 	if [[ "$1" =~ ^.*PHP-([0-9]{1,2})_([0-9]{1,2})$ ]]; then
 		echo "${BASH_REMATCH[1]}.${BASH_REMATCH[2]}"
+	elif [ -n "${PHP_DEFAULT_FPM-}" ]; then
+		# Set (local) by callers that ask for many domains: php starts once
+		echo "$PHP_DEFAULT_FPM"
 	else
 		multiphp_default_version
 	fi
@@ -168,6 +172,46 @@ php_used_by() {
 				|| { [ "$backend" = 'default' ] && [ "$version" = "$default" ]; }; then
 				echo "$user/$domain"
 			fi
+		done < "$conf"
+	done
+}
+
+# The web domains of every version in one pass over the web.conf files, with
+# the rules of php_used_by: PHP_USED_BY[VERSION] holds USER/DOMAIN lines, each
+# ending in a newline. v-list-sys-php-versions reads it once instead of
+# calling php_used_by (and php) for each version of the catalog. DEFAULT is
+# the result of php_default_version when the caller has it already.
+declare -gA PHP_USED_BY=()
+php_used_by_load() {
+	local conf user line domain backend version default
+	local re_domain="(^| )DOMAIN='([^']*)'" re_backend="(^| )BACKEND='([^']*)'"
+	local re_tpl="(^|-)PHP-([0-9]{1,2})_([0-9]{1,2})$"
+	PHP_USED_BY=()
+	if [ "$#" -gt 0 ]; then
+		default=$1
+	else
+		default=$(php_default_version)
+	fi
+	for conf in "$ARCPANEL"/data/users/*/web.conf; do
+		[ -f "$conf" ] || continue
+		user=${conf%/web.conf}
+		user=${user##*/}
+		while IFS= read -r line; do
+			[[ "$line" =~ $re_domain ]] || continue
+			domain=${BASH_REMATCH[2]}
+			[ -n "$domain" ] || continue
+			backend=''
+			if [[ "$line" =~ $re_backend ]]; then
+				backend=${BASH_REMATCH[2]}
+			fi
+			version=''
+			if [ "$backend" = 'default' ]; then
+				version=$default
+			elif [[ "$backend" =~ $re_tpl ]]; then
+				version="${BASH_REMATCH[2]}.${BASH_REMATCH[3]}"
+			fi
+			[ -n "$version" ] || continue
+			PHP_USED_BY[$version]+="$user/$domain"$'\n'
 		done < "$conf"
 	done
 }
@@ -1437,15 +1481,46 @@ php_domain_settings_restore() {
 # Web domains with their pool's profile: "USER DOMAIN BACKEND PROFILE" lines;
 # in user-pool mode the profile of the shared pool
 php_domain_pools() {
-	local conf user line domain backend
+	local conf user line domain backend key profile sidecar
+	local re_domain="(^| )DOMAIN='([^']*)'" re_backend="(^| )BACKEND='([^']*)'"
+	local re_key="(^| )DOMAIN='([^']*)' " re_profile="(^| )PROFILE='([^']*)'"
+	local -A profile_of=()
+	# Each file is read once, without a subshell per domain (php_domain_profile
+	# gives the same answer for one domain)
 	for conf in "$ARCPANEL"/data/users/*/web.conf; do
 		[ -f "$conf" ] || continue
-		user=$(basename "$(dirname "$conf")")
+		user=${conf%/web.conf}
+		user=${user##*/}
+		profile_of=()
+		sidecar="$ARCPANEL/data/users/$user/web.php.conf"
+		if [ -f "$sidecar" ]; then
+			while IFS= read -r line; do
+				[[ "$line" =~ $re_key ]] || continue
+				key=${BASH_REMATCH[2]}
+				[ -n "$key" ] || continue
+				# The first line of a pool key counts
+				[ -z "${profile_of[$key]+set}" ] || continue
+				profile=''
+				if [[ "$line" =~ $re_profile ]]; then
+					profile=${BASH_REMATCH[2]}
+				fi
+				profile_of[$key]=$profile
+			done < "$sidecar"
+		fi
 		while IFS= read -r line; do
-			domain=$(php_kv "$line" DOMAIN)
-			backend=$(php_kv "$line" BACKEND)
+			[[ "$line" =~ $re_domain ]] || continue
+			domain=${BASH_REMATCH[2]}
 			[ -n "$domain" ] || continue
-			echo "$user $domain ${backend:-default} $(php_domain_profile "$user" "$domain")"
+			backend=''
+			if [[ "$line" =~ $re_backend ]]; then
+				backend=${BASH_REMATCH[2]}
+			fi
+			key=$domain
+			if [ "$WEB_BACKEND_POOL" = 'user' ]; then
+				key='*'
+			fi
+			profile=${profile_of[$key]-}
+			echo "$user $domain ${backend:-default} ${profile:-default}"
 		done < "$conf"
 	done
 }
@@ -1470,6 +1545,9 @@ php_profile_domains() {
 php_profile_overrides() {
 	local version="$1" user domain backend profile pair key directive
 	local -A count=() has=()
+	# php_backend_version of every domain below reads this instead of php
+	local PHP_DEFAULT_FPM
+	PHP_DEFAULT_FPM=$(multiphp_default_version)
 	for profile in $(php_profile_names); do
 		for pair in $PHP_PROFILE_LIMITS; do
 			key=${pair%%:*}

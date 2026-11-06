@@ -94,6 +94,21 @@ sp_words_json() {
 	printf '%s\n' $1 | jq -R . | jq -cs .
 }
 
+# The word lists of the manifest check as JSON, built once per shell: a list
+# command calls sp_manifest_args_load before it checks every entry in
+# subshells
+SP_WORDS_CATS=''
+SP_WORDS_RELEASES=''
+SP_WORDS_RUNTIMES=''
+sp_manifest_args_load() {
+	if [ -n "$SP_WORDS_CATS" ]; then
+		return 0
+	fi
+	SP_WORDS_CATS=$(sp_words_json "$SP_CATEGORIES")
+	SP_WORDS_RELEASES=$(sp_words_json "$SP_RELEASES")
+	SP_WORDS_RUNTIMES=$(sp_words_json "$SP_RUNTIMES")
+}
+
 # Problems of the manifest FILE of SLUG, one per line; empty when it is valid
 sp_manifest_errors() {
 	local file="$1" slug="$2"
@@ -101,9 +116,9 @@ sp_manifest_errors() {
 		echo "not valid JSON"
 		return 0
 	fi
-	jq -r --arg slug "$slug" --argjson cats "$(sp_words_json "$SP_CATEGORIES")" \
-		--argjson releases "$(sp_words_json "$SP_RELEASES")" \
-		--argjson runtimes "$(sp_words_json "$SP_RUNTIMES")" "$SP_MANIFEST_JQ" "$file"
+	sp_manifest_args_load
+	jq -r --arg slug "$slug" --argjson cats "$SP_WORDS_CATS" --argjson releases "$SP_WORDS_RELEASES" \
+		--argjson runtimes "$SP_WORDS_RUNTIMES" "$SP_MANIFEST_JQ" "$file"
 }
 
 # Exit with E_NOTEXIST unless SLUG is a valid entry of the catalog
@@ -158,7 +173,39 @@ sp_provides() {
 	jq -r '(.provides // [])[]' "$(sp_manifest "$1")"
 }
 
+# dpkg status by package, filled by sp_dpkg_load: a list command reads the
+# packages of every entry in one dpkg-query call instead of one per package
+declare -gA SP_DPKG=()
+sp_dpkg_load() {
+	local pkg status
+	local -a names=()
+	for pkg in "$@"; do
+		if [[ "$pkg" =~ ^[a-z0-9][a-z0-9+.-]+$ ]]; then
+			names+=("$pkg")
+		fi
+	done
+	[ "${#names[@]}" -gt 0 ] || return 0
+	while read -r pkg status; do
+		# A package listed twice (several architectures) answers as one call
+		# per package would: not "installed"
+		if [ -n "${SP_DPKG[$pkg]+set}" ]; then
+			SP_DPKG[$pkg]=several
+		else
+			SP_DPKG[$pkg]=$status
+		fi
+	done < <(dpkg-query -W -f='${Package} ${db:Status-Status}\n' "${names[@]}" 2> /dev/null)
+	for pkg in "${names[@]}"; do
+		if [ -z "${SP_DPKG[$pkg]+set}" ]; then
+			SP_DPKG[$pkg]=unknown
+		fi
+	done
+}
+
 sp_pkg_installed() {
+	if [ -n "${SP_DPKG[$1]+set}" ]; then
+		[ "${SP_DPKG[$1]}" = 'installed' ]
+		return
+	fi
 	[ "$(dpkg-query -W -f='${db:Status-Status}' "$1" 2> /dev/null)" = 'installed' ]
 }
 

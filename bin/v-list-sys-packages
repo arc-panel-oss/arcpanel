@@ -62,7 +62,22 @@ if [ "$scope" = all ]; then
 	map=$(sp_domain_runtimes)
 fi
 entries=$(
-	for slug in $(sp_slugs); do
+	sp_manifest_args_load
+	slugs=$(sp_slugs)
+	# The packages of every entry and their dpkg status, read once
+	for slug in $slugs; do
+		SP_PACKAGES_OF[$slug]=$(sp_packages "$slug" 2> /dev/null)
+	done
+	# shellcheck disable=SC2046
+	sp_dpkg_load $(printf '%s\n' "${SP_PACKAGES_OF[@]}" | sort -u)
+	for slug in $slugs; do
+		if [ "$scope" = installed ]; then
+			# The installed list skips the entries that are not installed before
+			# the manifest check and the version, record and usage lookups
+			case "$(sp_status "$slug")" in
+				missing | unavailable) continue ;;
+			esac
+		fi
 		if [ -z "$(sp_manifest_errors "$(sp_manifest "$slug")" "$slug")" ]; then
 			sp_remember_packages "$slug"
 			sp_entry_json "$slug" "$upgradable" "$map"
