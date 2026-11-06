@@ -9,7 +9,9 @@
 # ArcPanel APT repository, or VERSION when given (the repository keeps every
 # version, docs/features/specs/2026-10-20-005-e33-update-center-phase-1-design.md
 # §6). Valid packages: arcpanel, arcpanel-nginx, arcpanel-php and
-# arcpanel-web-terminal. The output of apt-get is printed.
+# arcpanel-web-terminal. The output of apt-get is printed. It fails when the
+# ArcPanel APT source or its keyring is missing or apt cannot read the
+# repository, rather than report that nothing needs an update.
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -24,6 +26,8 @@ version=$2
 source /etc/arcpanel/arcpanel.conf
 # shellcheck source=/usr/local/arcpanel/func/main.sh
 source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/updates.sh
+source $ARCPANEL/func/updates.sh
 # load config file
 source_conf "$ARCPANEL/conf/arcpanel.conf"
 
@@ -45,9 +49,14 @@ check_arcpanel_demo_mode
 #                       Action                             #
 #----------------------------------------------------------#
 
-# Update repo
-apt-get update -o Dir::Etc::sourcelist="sources.list.d/arcpanel.list" \
-	-o Dir::Etc::sourceparts="-" -o APT::Get::List-Cleanup="0" -qq
+# Update the lists of the ArcPanel repository; without a usable source apt
+# would only find the installed version and report nothing to do
+upd_apt_update
+rc=$?
+if [ "$rc" -ne 0 ]; then
+	log_event "$rc" "$ARGUMENTS"
+	exit "$rc"
+fi
 
 # Update arcpanel package; keep changed configuration files, never ask
 target="$package"
