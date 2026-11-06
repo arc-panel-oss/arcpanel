@@ -466,6 +466,10 @@ EOF
     assert_equal "$(jq -r .status <<< "$output")" warn
     assert_equal "$(jq -r .value <<< "$output")" 2
     assert_equal "$(jq -r .fix.command <<< "$output")" 'v-check-sys-ports repair'
+    assert_equal "$(jq -r .message <<< "$output")" 'The port registry report has 2 findings (missing-rule orphan-socket).'
+    printf 'orphan-socket|root|38300|tcp||listening without an entry\n' > "$FIX/ports"
+    run check server.ports
+    assert_equal "$(jq -r .message <<< "$output")" 'The port registry report has 1 finding (orphan-socket).'
     : > "$FIX/ports"
     run status_of server.ports
     assert_output ok
@@ -485,6 +489,10 @@ EOF
     run check server.php-ini
     assert_equal "$(jq -r .status <<< "$output")" warn
     assert_output --partial 'PHP 8.3'
+    assert_equal "$(jq -r .message <<< "$output")" 'The php.ini of PHP 8.3 has 1 finding, for example: foo_bar: unknown directive'
+    printf '8.3\twarning\tfoo_bar: unknown directive\n8.4\terror\tbad line\n' > "$FIX/php-ini"
+    run check server.php-ini
+    assert_equal "$(jq -r .message <<< "$output")" 'The php.ini of PHP 8.3 8.4 has 2 findings, for example: foo_bar: unknown directive'
     : > "$FIX/php-ini"
     run status_of server.php-ini
     assert_output ok
@@ -494,6 +502,8 @@ EOF
     echo '{"FINDINGS":[{"USER":"alice","APP":"shop","TYPE":"stopped","DETAIL":""}]}' > "$FIX/docker"
     run status_of server.docker
     assert_output fail
+    run check server.docker
+    assert_equal "$(jq -r .message <<< "$output")" 'The Docker check reports 1 problem (stopped). The repair that runs every 5 minutes did not clear it.'
     echo '{"FINDINGS":[]}' > "$FIX/docker"
     run status_of server.docker
     assert_output ok
@@ -979,7 +989,9 @@ EOF
     v-run-sys-doctor "$USR" "$DOM" cli now > /dev/null
     n0=$(doctor_events | grep -c '"type":"doctor.digest"' || true)
     run lib "doctor_digest $USR"
-    assert_line --regexp "^Digest: $USR, [0-9]+ checks$"
+    assert_line --regexp "^Digest: $USR, ([2-9]|[1-9][0-9]+) checks$|^Digest: $USR, 1 check$"
+    run lib "doctor_checks_text 1 verb; doctor_checks_text 3; doctor_checks_text 2 verb"
+    assert_output "$(printf '1 check is\n3 checks\n2 checks are')"
     event=$(doctor_events | grep '"type":"doctor.digest"' | grep "\"user\":\"$USR\"" | tail -n1)
     assert_equal "$(jq -r .object <<< "$event")" "doctor:$USR"
     assert_equal "$(jq -r .severity <<< "$event")" info

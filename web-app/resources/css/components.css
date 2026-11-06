@@ -1184,6 +1184,11 @@
 .ap-list > li:last-child {
 	border-bottom: 0;
 }
+/* The date or value beside the text of a row keeps its line (dashboard notifications) */
+.ap-list > li > .ap-list-main + .mono {
+	flex-shrink: 0;
+	white-space: nowrap;
+}
 .ap-list > li.ap-list-item {
 	flex-direction: column;
 	align-items: flex-start;
@@ -4029,6 +4034,18 @@ body:has([data-form-bar]) .ap-toast-region {
 	width: min(380px, calc(100vw - 32px));
 	max-height: 70vh;
 	overflow-y: auto;
+}
+/* On a phone the bell is not at the right edge: the panel spans the top bar
+   (the containing block once the tray is not positioned) instead of running
+   off the left side of the screen */
+@media (max-width: 767px) {
+	.ap-tray {
+		position: static;
+	}
+	.ap-tray-panel {
+		inset-inline: var(--ap-space-4);
+		width: auto;
+	}
 }
 .ap-user-panel {
 	min-width: 300px;

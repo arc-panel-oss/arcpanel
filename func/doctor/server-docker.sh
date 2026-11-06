@@ -25,5 +25,9 @@ doctor_check() {
 		return
 	fi
 	types=$(jq -r '[.FINDINGS[].TYPE] | unique | join(", ")' <<< "$out")
-	dr_fail "The Docker check reports $count problems ($types). The repair that runs every 5 minutes did not clear them." "$count"
+	if [ "$count" -eq 1 ]; then
+		dr_fail "The Docker check reports 1 problem ($types). The repair that runs every 5 minutes did not clear it." "$count"
+	else
+		dr_fail "The Docker check reports $count problems ($types). The repair that runs every 5 minutes did not clear them." "$count"
+	fi
 }

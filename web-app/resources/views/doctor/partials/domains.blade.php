@@ -23,7 +23,7 @@
                 @if ($row['fail'] + $row['warn'] === 0)
                     <span class="muted">{{ $row['checked_at'] !== null ? __('None') : '—' }}</span>
                 @else
-                    {{ __(':fail failed, :warn warnings', ['fail' => $row['fail'], 'warn' => $row['warn']]) }}
+                    {{ trans_choice(':fail failed, :warn warning|:fail failed, :warn warnings', $row['warn'], ['fail' => $row['fail'], 'warn' => $row['warn']]) }}
                     @if ($row['failing'] !== [])
                         <span class="subtle mono">{{ implode(', ', $row['failing']) }}</span>
                     @endif

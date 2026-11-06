@@ -30,6 +30,10 @@ doctor_check() {
 	fi
 	count=$(wc -l <<< "$out")
 	types=$(cut -d'|' -f1 <<< "$out" | sort -u | tr '\n' ' ')
-	dr_warn "The port registry report has $count findings (${types% })." "$count"
+	if [ "$count" -eq 1 ]; then
+		dr_warn "The port registry report has 1 finding (${types% })." "$count"
+	else
+		dr_warn "The port registry report has $count findings (${types% })." "$count"
+	fi
 	dr_fix 'Repair the port registry' v-check-sys-ports repair
 }

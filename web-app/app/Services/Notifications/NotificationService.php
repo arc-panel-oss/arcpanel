@@ -109,8 +109,8 @@ final class NotificationService
         return implode('', array_column(self::parts($html), 'text'));
     }
 
-    /** Plain text of an HTML fragment: block ends and line breaks become spaces. */
-    private static function inline(string $html): string
+    /** Plain text of an HTML fragment: block ends and line breaks become spaces (also the dashboard card). */
+    public static function inline(string $html): string
     {
         $html = preg_replace('/<(br|\/p|\/div|\/li|\/h[1-6]|\/tr)\b[^>]*>/i', ' ', $html) ?? $html;
         $text = html_entity_decode(strip_tags($html), ENT_QUOTES | ENT_HTML5);

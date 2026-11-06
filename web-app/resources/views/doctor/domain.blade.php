@@ -23,7 +23,7 @@
     <x-ap-card>
         <div class="ap-row" data-doctor-score="{{ $result['score'] ?? '' }}">
             <x-ap-badge :tone="$scoreTone($result['score'])">{{ $result['score'] !== null ? __('Score :score', ['score' => $result['score']]) : __('No score') }}</x-ap-badge>
-            <span>{{ __(':fail failed, :warn warnings, :ok passed, :skip skipped', ['fail' => $counts['fail'] ?? 0, 'warn' => $counts['warn'] ?? 0, 'ok' => $counts['ok'] ?? 0, 'skip' => $counts['skip'] ?? 0]) }}</span>
+            <span>{{ trans_choice(':fail failed, :warn warning, :ok passed, :skip skipped|:fail failed, :warn warnings, :ok passed, :skip skipped', $counts['warn'] ?? 0, ['fail' => $counts['fail'] ?? 0, 'warn' => $counts['warn'] ?? 0, 'ok' => $counts['ok'] ?? 0, 'skip' => $counts['skip'] ?? 0]) }}</span>
             <span class="muted">{{ $result['checked_at'] !== null ? __('Checked :time', ['time' => $result['checked_at']]) : __('Never checked') }}</span>
         </div>
     </x-ap-card>

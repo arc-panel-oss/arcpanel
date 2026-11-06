@@ -38,5 +38,9 @@ doctor_check() {
 	count=$(wc -l <<< "$out")
 	versions=$(cut -f1 <<< "$out" | sort -u | tr '\n' ' ')
 	first=$(head -n1 <<< "$out" | cut -f3)
-	dr_warn "The php.ini of PHP ${versions% } has $count findings, for example: $first" "$count"
+	if [ "$count" -eq 1 ]; then
+		dr_warn "The php.ini of PHP ${versions% } has 1 finding, for example: $first" "$count"
+	else
+		dr_warn "The php.ini of PHP ${versions% } has $count findings, for example: $first" "$count"
+	fi
 }

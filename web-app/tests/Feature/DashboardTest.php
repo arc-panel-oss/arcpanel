@@ -86,6 +86,18 @@ it('shows the user dashboard: usage, domains, last backup and notifications', fu
     $this->fake->assertNotRan('v-list-sys-info');
 });
 
+it('keeps a space between the paragraphs of a notification on the dashboard', function () {
+    $this->fake->on('v-list-user-backups')->returnsJson([]);
+    $this->fake->on('v-list-user-notifications', ['bob', 'json'])->returnsJson(['1' => ['TOPIC' => 'Download failed',
+        'NOTICE' => "<p>Unable to retrieve backup file.</p><p><span>Error:</span> a.tar doesn't exist.</p>",
+        'ACK' => 'no', 'TIME' => '10:00:00', 'DATE' => '2026-11-06']]);
+    fakeServerUsers($this->fake, ['bob' => []]);
+    signIn('bob', 'user');
+
+    $this->get('/')->assertOk()->assertSee('Unable to retrieve backup file. Error: a.tar doesn', false)
+        ->assertDontSee('file.Error');
+});
+
 it('shows the user dashboard of the effective user while an admin impersonates', function () {
     $this->fake->on('v-list-user-backups')->returnsJson([]);
     $this->fake->on('v-list-user-notifications')->returnsJson([]);

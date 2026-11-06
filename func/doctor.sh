@@ -672,6 +672,15 @@ doctor_after_result() {
 # The weekly digest (spec D8): one doctor.digest event per scope (the
 # server and every user with domains) that lists the checks that are not
 # ok. Scopes where everything passes send nothing.
+# "1 check" or "N checks"; with a second argument, "1 check is" or "N checks are"
+doctor_checks_text() {
+	if [ "$1" -eq 1 ]; then
+		echo "1 check${2:+ is}"
+	else
+		echo "$1 checks${2:+ are}"
+	fi
+}
+
 doctor_digest() {
 	local user domain file lines count text
 	doctor_alerts_loaded || return 0
@@ -680,9 +689,9 @@ doctor_digest() {
 	if [ -n "$lines" ]; then
 		count=$(wc -l <<< "$lines")
 		text=$(paste -sd, - <<< "$lines" | sed 's/,/, /g')
-		echo "Digest: the server, $count checks"
+		echo "Digest: the server, $(doctor_checks_text "$count")"
 		alert_event doctor.digest system doctor:system info \
-			"Doctor weekly digest of the server: $count checks are not ok: $text." "${JOB_ID-}"
+			"Doctor weekly digest of the server: $(doctor_checks_text "$count" verb) not ok: $text." "${JOB_ID-}"
 	fi
 	for user in "$@"; do
 		lines=''
@@ -695,9 +704,9 @@ doctor_digest() {
 		[ -n "$lines" ] || continue
 		count=$(wc -l <<< "$lines")
 		text=$(paste -sd, - <<< "$lines" | sed 's/,/, /g')
-		echo "Digest: $user, $count checks"
+		echo "Digest: $user, $(doctor_checks_text "$count")"
 		ALERT_EVENT_USER_ONLY=yes alert_event doctor.digest "$user" "doctor:$user" info \
-			"Doctor weekly digest of $user: $count checks are not ok: $text." "${JOB_ID-}"
+			"Doctor weekly digest of $user: $(doctor_checks_text "$count" verb) not ok: $text." "${JOB_ID-}"
 	done
 }
 

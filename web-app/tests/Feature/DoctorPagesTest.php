@@ -33,6 +33,15 @@ it('shows a user the checks of its domains with the Fix of a failing check', fun
     $this->get('/server/doctor')->assertForbidden();
 });
 
+it('counts one warning in the singular', function () {
+    signIn('bob', 'user');
+    $this->get('/doctor/bob')->assertOk()->assertSee('1 failed, 1 warning')->assertDontSee('1 warnings');
+    $this->get('/doctor/bob/bob.example')->assertOk()->assertSee('1 failed, 1 warning, 1 passed, 0 skipped');
+
+    signIn('arcadmin', 'admin');
+    $this->get('/server/doctor')->assertOk()->assertSee('1 failed, 1 warning, 1 passed, 1 skipped');
+});
+
 it('lists the domains of a reseller\'s tree and keeps other trees out', function () {
     signIn('hostco', 'reseller');
     $this->get('/doctor/hostco')->assertOk()->assertSee('bob.example')->assertDontSee('carol.example');

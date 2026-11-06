@@ -11,6 +11,7 @@ use App\Services\Docker\DockerAccess;
 use App\Services\Docker\DockerApps;
 use App\Services\Node\NodeAccess;
 use App\Services\Node\NodeApps;
+use App\Services\Notifications\NotificationService;
 use App\Services\UserDirectory;
 use App\Services\Users\UserRecord;
 use App\Services\Users\UserService;
@@ -363,8 +364,8 @@ final class DashboardService
         foreach ($this->arc->json('v-list-user-notifications', [$user]) as $row) {
             if (is_array($row)) {
                 $items[] = [
-                    'title' => trim(html_entity_decode(strip_tags((string) ($row['TOPIC'] ?? '')), ENT_QUOTES | ENT_HTML5)),
-                    'body' => trim(html_entity_decode(strip_tags((string) ($row['NOTICE'] ?? '')), ENT_QUOTES | ENT_HTML5)),
+                    'title' => trim(NotificationService::inline((string) ($row['TOPIC'] ?? ''))),
+                    'body' => trim(NotificationService::inline((string) ($row['NOTICE'] ?? ''))),
                     'date' => (string) ($row['DATE'] ?? ''),
                     'acknowledged' => ($row['ACK'] ?? '') === 'yes',
                 ];
