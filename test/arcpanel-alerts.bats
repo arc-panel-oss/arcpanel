@@ -1019,6 +1019,16 @@ event() {
     assert_output 0
 }
 
+@test "Events: an event message names its reference on a line of its own" {
+    run lib "alerts_message event system doctor.failed doctor:system:server.ptr warning 'Ref: 17940000001234' 'It failed.' ''; printf '%s\n' \"\$MSG_TEXT\""
+    assert_success
+    assert_line 'Ref: 17940000001234'
+    refute_line --partial 'Value:'
+    # A metric value keeps its label
+    run lib "alerts_message fired system disk.usage mount:/ warning '93% (warning 90%)' '' ''; printf '%s\n' \"\$MSG_TEXT\""
+    assert_line 'Value: 93% (warning 90%)'
+}
+
 @test "Events: below the rule's severity, or older than a day, an event is kept without a message" {
     only_rule system update.result '' '' 0 critical 1440 "$(panel_id)" > /dev/null
     event 0 update.result system update:2.7.1 info 'ArcPanel 2.7.1 is available'

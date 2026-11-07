@@ -640,9 +640,23 @@ alerts_hostname() {
 	fi
 }
 
+# The account that owns the web or mail domain DOMAIN, empty when none does
+alerts_domain_owner() {
+	local domain="$1" file
+	[[ "$domain" =~ ^[A-Za-z0-9._-]+$ ]] || return 0
+	for file in "$ARCPANEL"/data/users/*/web.conf "$ARCPANEL"/data/users/*/mail.conf; do
+		[ -f "$file" ] || continue
+		if grep -q "^DOMAIN='$domain'" "$file"; then
+			file=${file%/*}
+			echo "${file##*/}"
+			return 0
+		fi
+	done
+}
+
 # The panel URL of OBJECT seen from SCOPE (spec §5.2)
 alerts_object_url() {
-	local scope="$1" object="$2" path
+	local scope="$1" object="$2" path domain owner
 	case "$object" in
 		service:*) path=/server/services ;;
 		mount:* | system) path=/server/rrd ;;
@@ -652,6 +666,19 @@ alerts_object_url() {
 		backup:*) path=/backups ;;
 		update:*) path=/server/updates ;;
 		doctor:system | doctor:system:*) path=/server/doctor ;;
+		doctor:*:*)
+			# A domain check opens the Doctor page of the domain
+			domain=${object#doctor:}
+			domain=${domain%%:*}
+			owner=$(alerts_domain_owner "$domain")
+			if [ -n "$owner" ]; then
+				path="/doctor/$owner/$domain"
+			elif [ "$scope" = 'system' ]; then
+				path=/server/doctor
+			else
+				path=/doctor
+			fi
+			;;
 		doctor:*)
 			if [ "$scope" = 'system' ]; then
 				path=/server/doctor
@@ -713,7 +740,11 @@ alerts_message() {
 			;;
 	esac
 	MSG_TEXT="Server: $host"$'\n'"Severity: $severity"$'\n'"Rule: $title ($rule)"$'\n'"Object: $object"
-	[ -n "$value" ] && MSG_TEXT+=$'\n'"Value: $value"
+	case "$value" in
+		'') ;;
+		'Ref: '*) MSG_TEXT+=$'\n'"$value" ;;
+		*) MSG_TEXT+=$'\n'"Value: $value" ;;
+	esac
 	[ -n "$detail" ] && MSG_TEXT+=$'\n'"Details: $detail"
 	if [ -n "$count" ] && [ "$count" -gt 1 ] 2> /dev/null; then
 		MSG_TEXT+=$'\n'"Events: $count since $(alerts_ts "$(alerts_epoch "$since")")"

@@ -1001,9 +1001,16 @@ EOF
 }
 
 @test "Doctor: the alert links of doctor objects open the Doctor pages" {
-    run bash -c "source /etc/arcpanel/arcpanel.conf; source $ARCPANEL/func/main.sh; source $ARCPANEL/func/alerts.sh; source_conf $ARCPANEL/conf/arcpanel.conf; alerts_object_url system doctor:system:server.ptr; alerts_object_url $USR doctor:$DOM:web.dns-a"
-    assert_line --regexp '/server/doctor$'
-    assert_line --regexp ':[0-9]+/doctor$'
+    run bash -c "source /etc/arcpanel/arcpanel.conf; source $ARCPANEL/func/main.sh; source $ARCPANEL/func/alerts.sh; source_conf $ARCPANEL/conf/arcpanel.conf; alerts_object_url system doctor:system:server.ptr; alerts_object_url $USR doctor:$USR"
+    assert_line --index 0 --regexp ':[0-9]+/server/doctor$'
+    assert_line --index 1 --regexp ':[0-9]+/doctor$'
+}
+
+@test "Doctor: the alert link of a domain check opens the Doctor page of the domain" {
+    run bash -c "source /etc/arcpanel/arcpanel.conf; source $ARCPANEL/func/main.sh; source $ARCPANEL/func/alerts.sh; source_conf $ARCPANEL/conf/arcpanel.conf; alerts_object_url system doctor:$DOM:web.dns-a; alerts_object_url $USR doctor:$DOM:mail.spf; alerts_object_url system doctor:gone.example:web.dns-a"
+    assert_line --index 0 --regexp ":[0-9]+/doctor/$USR/$DOM\$"
+    assert_line --index 1 --regexp ":[0-9]+/doctor/$USR/$DOM\$"
+    assert_line --index 2 --regexp ':[0-9]+/server/doctor$'
 }
 
 @test "Doctor: the 3.0.0 step adds the nightly cron line once" {
