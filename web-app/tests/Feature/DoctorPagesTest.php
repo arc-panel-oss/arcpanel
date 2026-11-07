@@ -3,6 +3,7 @@
 use App\Arc\ExitCode;
 use App\Auth\Role;
 use App\Policies\Capabilities;
+use App\Services\Doctor\DoctorStore;
 use Illuminate\Support\Facades\Route;
 
 // The Doctor pages (E17 spec §5). hostco owns bob, resb owns carol and dave;
@@ -152,7 +153,7 @@ it('gives every Doctor route a capability and a policy', function () {
 });
 
 it('names only the counts of a domain that are not zero', function (int $fail, int $warn, string $text) {
-    expect(\App\Services\Doctor\DoctorStore::failingSummary($fail, $warn))->toBe($text);
+    expect(DoctorStore::failingSummary($fail, $warn))->toBe($text);
 })->with([
     [1, 0, '1 failed'],
     [0, 1, '1 warning'],
