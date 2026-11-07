@@ -99,6 +99,7 @@ case "$1" in
     echo) shift; echo "$@"; echo "JOB_ID=$JOB_ID" ;;
     sleep) echo "sleeping $2"; sleep "$2"; echo "slept" ;;
     fail) echo "working"; echo "Error: the bats command failed"; echo "trailing"; exit "${2:-3}" ;;
+    quote) echo "Error: backup file x.tar doesn't exist in '/backup' folder"; exit 3 ;;
     noretry) source /etc/arcpanel/arcpanel.conf; source $ARCPANEL/func/job.sh; job_no_retry; echo "Error: final"; exit 4 ;;
     secret) printf '%s\n' "$2" >> "$JOB_MASK_FILE"; echo "token=$2 done"; echo "url https://bob:hunter22@example.com/x" ;;
     big) for i in $(seq 1 "$2"); do printf 'line %06d %s\n' "$i" 0123456789012345678901234567890123456789012345678901234567890123456789; done ;;
@@ -228,6 +229,18 @@ teardown() {
     assert_output 5
     run field "$id" ERROR
     assert_output "the bats command failed"
+}
+
+@test "Jobs: an error with quotes keeps them as typographic apostrophes" {
+    run mkjob bats.immediate bats-quote quote
+    id=$output
+    run wait_job "$id"
+    assert_output failed
+    run field "$id" ERROR
+    assert_output "backup file x.tar doesn’t exist in ’/backup’ folder"
+    # The record still reads as one line of KEY='value' pairs
+    run v-list-job "$id" 0 json
+    assert_success
 }
 
 @test "Jobs: the runner refreshes the heartbeat" {

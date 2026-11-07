@@ -324,7 +324,12 @@ job_set() {
 	fi
 	for pair in "$@"; do
 		key=${pair%%=*}
-		values[$key]=$(printf '%s' "${pair#*=}" | tr -d "'\n\r")
+		if [ "$key" = 'ERROR' ]; then
+			# A message keeps its quotes as typographic apostrophes ("doesn’t")
+			values[$key]=$(printf '%s' "${pair#*=}" | tr -d '\n\r' | sed "s/'/’/g")
+		else
+			values[$key]=$(printf '%s' "${pair#*=}" | tr -d "'\n\r")
+		fi
 	done
 	values[UPDATED]=$(date +'%F %T')
 	for key in $JOB_KEYS; do
