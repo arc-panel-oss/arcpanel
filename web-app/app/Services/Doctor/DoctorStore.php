@@ -145,6 +145,15 @@ final class DoctorStore
         return array_filter($groups);
     }
 
+    /** The failed and warning counts of a domain, leaving out a count that is zero ("1 failed", "2 warnings"). */
+    public static function failingSummary(int $fail, int $warn): string
+    {
+        return implode(', ', array_filter([
+            $fail > 0 ? __(':count failed', ['count' => $fail]) : null,
+            $warn > 0 ? trans_choice(':count warning|:count warnings', $warn, ['count' => $warn]) : null,
+        ]));
+    }
+
     /** @return list<string> */
     private static function runArgs(string $scope, string $domain, string $actor): array
     {

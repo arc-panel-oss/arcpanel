@@ -66,7 +66,7 @@
                             $limits = array_filter([
                                 $rule['WARNING'] !== '' ? __('warning').' '.$threshold($rule, $rule['WARNING']) : null,
                                 $rule['CRITICAL'] !== '' ? __('critical').' '.$threshold($rule, $rule['CRITICAL']) : null,
-                                (int) ($rule['FOR'] ?? 0) > 0 ? __('for :min min', ['min' => $rule['FOR']]) : null,
+                                (int) ($rule['FOR'] ?? 0) > 0 ? __('for :time', ['time' => \App\View\JobFormat::minutes((int) $rule['FOR'])]) : null,
                                 $event ? __('from :severity', ['severity' => $severities[$rule['SEVERITY']] ?? $rule['SEVERITY']]) : null,
                             ]);
                         @endphp
@@ -80,7 +80,7 @@
                                 @endif
                             </td>
                             <td data-col="thresholds" data-label="{{ __('Thresholds') }}">{{ implode(', ', $limits) ?: '—' }}</td>
-                            <td data-col="cooldown" data-label="{{ __('Cooldown') }}">{{ __(':min min', ['min' => $rule['COOLDOWN']]) }}</td>
+                            <td data-col="cooldown" data-label="{{ __('Cooldown') }}">{{ \App\View\JobFormat::minutes((int) $rule['COOLDOWN']) }}</td>
                             <td data-col="channels" data-label="{{ __('Channels') }}">
                                 {{ implode(', ', array_map($channelName, array_filter(explode(',', $rule['CHANNELS'])))) ?: '—' }}
                             </td>

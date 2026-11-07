@@ -39,7 +39,7 @@
                 <dd>{{ $job->user === 'system' ? __('Server') : $job->user }}</dd>
                 <dt>{{ __('Actor') }}</dt>
                 <dd>{{ $job->actor }}</dd>
-                <dt>{{ __('Command') }}</dt>
+                <dt>{{ __('Arguments') }}</dt>
                 <dd class="ap-mono">{{ $job->args }}</dd>
                 <dt>{{ __('Queued') }}</dt>
                 <dd class="ap-mono">{{ $time($job->queuedAt) }}</dd>

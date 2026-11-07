@@ -150,3 +150,13 @@ it('gives every Doctor route a capability and a policy', function () {
         expect(Route::has($name))->toBeTrue();
     }
 });
+
+it('names only the counts of a domain that are not zero', function (int $fail, int $warn, string $text) {
+    expect(\App\Services\Doctor\DoctorStore::failingSummary($fail, $warn))->toBe($text);
+})->with([
+    [1, 0, '1 failed'],
+    [0, 1, '1 warning'],
+    [0, 2, '2 warnings'],
+    [3, 1, '3 failed, 1 warning'],
+    [2, 2, '2 failed, 2 warnings'],
+]);

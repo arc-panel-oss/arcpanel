@@ -37,7 +37,8 @@ it('lets resellers and administrators see the scopes of their customers', functi
     signIn('arcadmin', 'admin');
     $this->get('/alerts/carol')->assertOk();
     $this->get('/server/alerts')->assertOk()->assertSee('Server alerts')->assertSee('mount:/home')
-        ->assertSee('96% (warning 90%, critical 95%)')->assertSee('Every administrator');
+        ->assertSee('96% (warning 90%, critical 95%)')->assertSee('Every administrator')
+        ->assertSee('<td data-col="cooldown" data-label="Cooldown">1 day</td>', false)->assertDontSee('1440 min');
     $this->fake->assertRan('v-list-alert-rules', fn ($a) => $a === ['system', 'json']);
 
     signIn('bob', 'user');

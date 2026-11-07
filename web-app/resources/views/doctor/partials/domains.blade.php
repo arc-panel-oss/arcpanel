@@ -23,7 +23,7 @@
                 @if ($row['fail'] + $row['warn'] === 0)
                     <span class="muted">{{ $row['checked_at'] !== null ? __('None') : '—' }}</span>
                 @else
-                    {{ trans_choice(':fail failed, :warn warning|:fail failed, :warn warnings', $row['warn'], ['fail' => $row['fail'], 'warn' => $row['warn']]) }}
+                    {{ \App\Services\Doctor\DoctorStore::failingSummary($row['fail'], $row['warn']) }}
                     @if ($row['failing'] !== [])
                         <span class="subtle mono">{{ implode(', ', $row['failing']) }}</span>
                     @endif

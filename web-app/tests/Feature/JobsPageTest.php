@@ -49,7 +49,8 @@ it('filters the list by status and type', function () {
 it('shows a job with its log and answers 404 outside the scope', function () {
     signIn('hostco', 'reseller');
     $this->get('/jobs/17280000006001')->assertOk()->assertSee('disk full')->assertSee('apJob(', false)
-        ->assertSee(route('jobs.retry', ['id' => '17280000006001']), false);
+        ->assertSee(route('jobs.retry', ['id' => '17280000006001']), false)
+        ->assertSee('<dt>Arguments</dt>', false)->assertDontSee('<dt>Command</dt>', false);
     $this->get('/jobs/17280000009001')->assertNotFound();
     $this->get('/jobs/17280000005001')->assertNotFound();
     $this->get('/jobs/17280000009001/status')->assertNotFound();
