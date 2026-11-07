@@ -6,6 +6,7 @@ use App\Arc\ArcCommand;
 use App\Arc\CommandResult;
 use App\Arc\Options;
 use App\Arc\Secret;
+use App\Services\Packages\PackageTenancy;
 
 /**
  * The PHP Manager of E41 (docs/features/specs/2026-10-12-001-e41-php-manager-design.md):
@@ -61,7 +62,10 @@ final class PhpManager
     /** @var array<string, array<string, mixed>>|null per request */
     private ?array $profiles = null;
 
-    public function __construct(private readonly ArcCommand $arc) {}
+    public function __construct(
+        private readonly ArcCommand $arc,
+        private readonly PackageTenancy $tenancy,
+    ) {}
 
     /** Read the versions and profiles again after a change. */
     public function forget(): void
@@ -700,9 +704,7 @@ final class PhpManager
      */
     public function packageOf(string $package): array
     {
-        $rows = $package === '' ? [] : $this->arc->json('v-list-package-tenancy', [$package], Options::allowFailure());
-
-        return self::packageKeys(is_array($rows[$package] ?? null) ? $rows[$package] : []);
+        return self::packageKeys($this->tenancy->of($package));
     }
 
     /**

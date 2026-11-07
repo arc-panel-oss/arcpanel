@@ -10,6 +10,7 @@ use App\Policies\Scope;
 use App\Services\Node\NodeAccess;
 use App\Services\Node\NodeApps;
 use App\Services\Node\NodeAppService;
+use App\Services\Packages\PackageTenancy;
 use App\Tenancy\TenancyDirectory;
 
 // NodePolicy app abilities, the app records and NodeAppService (E14 spec
@@ -25,7 +26,7 @@ beforeEach(function () {
 
 function nodeAppPolicy(Principal $principal): NodePolicy
 {
-    return new NodePolicy(new OwnerScope($principal, new TenancyDirectory(app(ArcCommand::class))), new NodeAccess(app(ArcCommand::class)));
+    return new NodePolicy(new OwnerScope($principal, new TenancyDirectory(app(ArcCommand::class))), new NodeAccess(app(ArcCommand::class), new PackageTenancy(app(ArcCommand::class))));
 }
 
 it('gives every role Node.js apps on the accounts it can see', function () {

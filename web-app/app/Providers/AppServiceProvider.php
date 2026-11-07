@@ -22,6 +22,7 @@ use App\Services\Mail\HostingCredentialsMailer;
 use App\Services\Mail\PanelCredentialsMailer;
 use App\Services\Mail\PasswordResetMailer;
 use App\Services\Node\NodeAccess;
+use App\Services\Packages\PackageTenancy;
 use App\Services\Server\SystemPackages;
 use App\Tenancy\TenancyDirectory;
 use App\View\AssetManifest;
@@ -66,7 +67,8 @@ class AppServiceProvider extends ServiceProvider
         // Owner tree, read once per request (E11)
         $this->app->scoped(TenancyDirectory::class, fn ($app) => new TenancyDirectory($app->make(ArcCommand::class)));
 
-        // Package key NODE per package, read once per request (E13)
+        // Tenancy keys per package, read once per request for every grant (E13)
+        $this->app->scoped(PackageTenancy::class);
         $this->app->scoped(NodeAccess::class);
 
         // System package catalog, read once per request (E5)

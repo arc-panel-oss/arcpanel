@@ -12,6 +12,7 @@ use App\Services\Docker\DockerAccess;
 use App\Services\Docker\DockerApp;
 use App\Services\Docker\DockerApps;
 use App\Services\Docker\DockerAppService;
+use App\Services\Packages\PackageTenancy;
 use App\Tenancy\TenancyDirectory;
 
 // DockerPolicy, the app records and DockerAppService patterns (E4 spec §6):
@@ -28,7 +29,7 @@ beforeEach(function () {
 function dockerPolicy(Principal $principal): DockerPolicy
 {
     return new DockerPolicy(new OwnerScope($principal, new TenancyDirectory(app(ArcCommand::class))),
-        new DockerAccess(app(ArcCommand::class), app(SysConfig::class)));
+        new DockerAccess(app(ArcCommand::class), app(SysConfig::class), new PackageTenancy(app(ArcCommand::class))));
 }
 
 it('gives every role Docker apps on the accounts it can see and the engine to administrators', function () {

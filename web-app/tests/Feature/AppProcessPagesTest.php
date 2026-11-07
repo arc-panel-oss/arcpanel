@@ -106,6 +106,16 @@ it('lists the processes on the user detail page', function () {
         ->assertSee('href="'.route('app-processes.show', ['user' => 'bob', 'domain' => 'shop.bob.example', 'name' => 'web']).'"', false);
 });
 
+it('reads the package of the account once for every grant on the web domain page', function () {
+    fakeWebDomains($this->fake);
+    $this->fake->on('v-list-web-domain-php')->returnsJson([]);
+    signIn('bob', 'user');
+
+    $this->get('/web/domains/bob/example.com/edit')->assertOk()->assertSee('App processes');
+    // Node.js, Docker, app processes, object storage and PHP read one answer
+    $this->fake->assertRan('v-list-package-tenancy', fn ($a) => $a[0] === 'developer', 1);
+});
+
 it('lists the domain processes in a tab of the web domain page', function () {
     fakeWebDomains($this->fake);
     $this->fake->on('v-list-web-domain-php')->returnsJson([]);

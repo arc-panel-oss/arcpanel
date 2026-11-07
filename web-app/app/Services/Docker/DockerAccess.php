@@ -5,6 +5,7 @@ namespace App\Services\Docker;
 use App\Arc\ArcCommand;
 use App\Arc\Options;
 use App\Arc\SysConfig;
+use App\Services\Packages\PackageTenancy;
 
 /**
  * Whether Docker apps are available to a user (E4 spec §6.2): the engine is
@@ -24,6 +25,7 @@ final class DockerAccess
     public function __construct(
         private readonly ArcCommand $arc,
         private readonly SysConfig $config,
+        private readonly PackageTenancy $tenancy,
     ) {}
 
     /** The Docker engine is installed (v-add-sys-docker). */
@@ -58,12 +60,6 @@ final class DockerAccess
 
     private function packageAllows(string $package): bool
     {
-        $result = $this->arc->run('v-list-package-tenancy', [$package, 'json'], Options::allowFailure());
-        if (! $result->ok()) {
-            return false;
-        }
-        $data = json_decode($result->stdout, true);
-
-        return is_array($data) && (($data[$package]['DOCKER'] ?? '') === 'yes');
+        return $this->tenancy->allows($package, 'DOCKER');
     }
 }

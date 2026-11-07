@@ -5,6 +5,7 @@ namespace App\Services\ObjectStorage;
 use App\Arc\ArcCommand;
 use App\Arc\Options;
 use App\Arc\SysConfig;
+use App\Services\Packages\PackageTenancy;
 
 /**
  * Whether object storage is available to a user (E44 spec §11): Silo is
@@ -23,6 +24,7 @@ final class ObjectStorageAccess
     public function __construct(
         private readonly ArcCommand $arc,
         private readonly SysConfig $config,
+        private readonly PackageTenancy $tenancy,
     ) {}
 
     public function installed(): bool
@@ -43,9 +45,6 @@ final class ObjectStorageAccess
 
     private function packageAllows(string $package): bool
     {
-        $result = $this->arc->run('v-list-package-tenancy', [$package, 'json'], Options::allowFailure());
-        $data = $result->ok() ? json_decode($result->stdout, true) : null;
-
-        return is_array($data) && (($data[$package]['OBJECT_STORAGE'] ?? '') === 'yes');
+        return $this->tenancy->allows($package, 'OBJECT_STORAGE');
     }
 }

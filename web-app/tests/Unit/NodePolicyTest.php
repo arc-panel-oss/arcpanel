@@ -10,6 +10,7 @@ use App\Policies\Scope;
 use App\Services\Node\NodeAccess;
 use App\Services\Node\NodeAccount;
 use App\Services\Node\NodeService;
+use App\Services\Packages\PackageTenancy;
 use App\Tenancy\TenancyDirectory;
 
 // NodePolicy and NodeService (E13 spec §6): hostco owns bob (developer
@@ -26,7 +27,7 @@ function nodePolicy(Principal $principal): NodePolicy
 {
     $tenancy = new TenancyDirectory(app(ArcCommand::class));
 
-    return new NodePolicy(new OwnerScope($principal, $tenancy), new NodeAccess(app(ArcCommand::class)));
+    return new NodePolicy(new OwnerScope($principal, $tenancy), new NodeAccess(app(ArcCommand::class), new PackageTenancy(app(ArcCommand::class))));
 }
 
 it('gives every role Node.js on the accounts it can see', function () {
@@ -66,7 +67,7 @@ it('allows nothing in read-only mode', function () {
 });
 
 it('reads the package key once per package', function () {
-    $access = new NodeAccess(app(ArcCommand::class));
+    $access = new NodeAccess(app(ArcCommand::class), new PackageTenancy(app(ArcCommand::class)));
 
     expect($access->allowed('bob'))->toBeTrue()
         ->and($access->allowed('bob'))->toBeTrue()

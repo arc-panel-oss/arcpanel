@@ -4,6 +4,7 @@ namespace App\Services\AppProcesses;
 
 use App\Arc\ArcCommand;
 use App\Arc\Options;
+use App\Services\Packages\PackageTenancy;
 
 /**
  * Whether a user's package allows app processes (package key APP_PROCESSES,
@@ -21,6 +22,7 @@ final class AppProcessAccess
 
     public function __construct(
         private readonly ArcCommand $arc,
+        private readonly PackageTenancy $tenancy,
     ) {}
 
     public function allowed(string $user): bool
@@ -42,12 +44,6 @@ final class AppProcessAccess
 
     private function packageAllows(string $package): bool
     {
-        $result = $this->arc->run('v-list-package-tenancy', [$package, 'json'], Options::allowFailure());
-        if (! $result->ok()) {
-            return false;
-        }
-        $data = json_decode($result->stdout, true);
-
-        return is_array($data) && (($data[$package]['APP_PROCESSES'] ?? '') === 'yes');
+        return $this->tenancy->allows($package, 'APP_PROCESSES');
     }
 }
