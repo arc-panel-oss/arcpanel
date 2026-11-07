@@ -20,7 +20,7 @@ BJ_SCHEDULE_HELPER="$ARCPANEL/func/backup-schedule.php"
 # A whole run starts as a job (E15)
 # shellcheck source=/usr/local/arcpanel/func/job.sh
 source "$ARCPANEL/func/job.sh"
-BJ_RUN_KEYS=(RUN TRIGGER STATUS START END USERS DONE FAILED SKIPPED PID JOB)
+BJ_RUN_KEYS=(RUN TRIGGER STATUS START END USERS DONE FAILED SKIPPED PID TASK)
 BJ_RUN_KEEP=50
 
 #----------------------------------------------------------#
@@ -588,7 +588,7 @@ bj_json() {
 #----------------------------------------------------------#
 
 # Start a whole run of job ID in the background (TRIGGER schedule or
-# request) as a job of type backup.job (E15); the run line records it (JOB)
+# request) as a job of type backup.job (E15); the run line records it (TASK)
 bj_start_detached() {
 	local id="$1" trigger="$2" actor
 	actor=$(job_default_actor)

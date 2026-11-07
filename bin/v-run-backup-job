@@ -176,7 +176,7 @@ for owner in $(bj_users "$id"); do
 	users+=("$owner")
 done
 bj_run_set "$id" "$run" "TRIGGER=$trigger" STATUS=running "START=$(date +'%F %T')" END= \
-	"USERS=${#users[@]}" DONE=0 FAILED=0 "SKIPPED=$skipped" "PID=$$" "JOB=${JOB_ID-}"
+	"USERS=${#users[@]}" DONE=0 FAILED=0 "SKIPPED=$skipped" "PID=$$" "TASK=${JOB_ID-}"
 bj_set "$id" "LAST_RUN=$run"
 
 parallel=${BACKUP_PARALLEL:-1}

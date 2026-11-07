@@ -242,6 +242,9 @@ teardown_file() {
     run v-list-backup-job-runs "$id" json
     assert_equal "$(jq 'length' <<< "$output")" 1
     assert_equal "$(jq -r '.[0].TRIGGER' <<< "$output")" schedule
+    # The run names its backup job in JOB and the job of the run (E15) in TASK
+    assert_equal "$(jq -r '.[0].JOB' <<< "$output")" "$id"
+    assert_equal "$(v-list-job "$(jq -r '.[0].TASK' <<< "$output")" 0 json | jq -r .TYPE)" backup.job
     next=$(job_value "$id" NEXT_RUN_TS)
     [ "$next" -gt "$(date +%s)" ]
     run v-list-backup-job-runs "$paused" json
