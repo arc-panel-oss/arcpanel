@@ -1189,6 +1189,14 @@
 	flex-shrink: 0;
 	white-space: nowrap;
 }
+/* Doctor checks: the actions keep one width, so Docs lines up in every row */
+@media (min-width: 768px) {
+	.ap-doctor-checks > li > .ap-row {
+		flex-shrink: 0;
+		justify-content: flex-start;
+		min-width: 13rem;
+	}
+}
 .ap-list > li.ap-list-item {
 	flex-direction: column;
 	align-items: flex-start;

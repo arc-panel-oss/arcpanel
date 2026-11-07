@@ -46,6 +46,20 @@ test('user: the Doctor lists the domain and its failing alias with Fix', async (
 	await expectAccessible(page);
 });
 
+test('user: the Docs links of the checks line up whatever actions a row has', async ({ page }) => {
+	await login(page, USER);
+	await page.goto(`/doctor/${USER}/${DOMAIN}`);
+	const docs = page.locator('[data-doctor-check]').getByRole('link', { name: /^Docs/ });
+	await expect(docs.first()).toBeVisible();
+	const lefts = new Set();
+	for (const box of await docs.evaluateAll((links) =>
+		links.map((a) => Math.round(a.getBoundingClientRect().left)),
+	)) {
+		lefts.add(box);
+	}
+	expect([...lefts]).toHaveLength(1);
+});
+
 test('user: Run now follows the doctor.run job and shows the new result', async ({ page }) => {
 	test.setTimeout(120_000);
 	await login(page, USER);
