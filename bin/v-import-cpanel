@@ -83,9 +83,9 @@ cd $tmpdir/*
 main_dir=$(pwd)
 echo "Access tmp directory $main_dir"
 dbprefix=$(cat meta/dbprefix)
-if [ $dbprefix == 1 ]; then
-	echo "Error 255 - I dont like your prefix, I dont want do this job"
-	exit 255
+if [ "$dbprefix" = 1 ]; then
+	check_result "$E_INVALID" "unsupported cPanel database prefix (dbprefix=1); recreate the backup with a standard database prefix"
+	
 fi
 main_domain1=$(grep main_domain userdata/main | cut -d " " -f2)
 new_user=$(grep "^user:" userdata/${main_domain1} | cut -d " " -f2)
