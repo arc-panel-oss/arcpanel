@@ -45,11 +45,11 @@ manifest directly; there is no separate schema file.
 | `license`               | Optional string naming the app's license.                                                                                                                                                                                           |
 | `admin_only`            | Optional boolean; defaults to `false`.                                                                                                                                                                                              |
 | `arch`                  | Required, non-empty list containing only `amd64` and/or `arm64`.                                                                                                                                                                    |
-| `images`                | Required, non-empty list of image references ending in `@sha256:<64 lowercase hex digits>`. A tagged example is `name:tag@sha256:...`. Every service image in Compose must be listed here.                                          |
-| `requirements`          | Required object with `memory` and `disk` sizes, such as `128M` or `1G`.                                                                                                                                                             |
-| `limits`                | Required object with a `memory` size and numeric `cpus`, such as `256M` and `0.5`.                                                                                                                                                  |
+| `images`                | Required, non-empty list of image references ending in `@sha256:<64 lowercase hex digits>`. Image names and tags must be lowercase. A tagged example is `name:tag@sha256:...`. Every service image in Compose must be listed here.  |
+| `requirements`          | Required object with `memory` and `disk` sizes, such as `128M` or `1G`. Each size has 1–7 digits followed by uppercase `M` or `G`.                                                                                                  |
+| `limits`                | Required object with a `memory` size and `cpus` as a JSON string, such as `"256M"` and `"0.5"`. CPU values allow 1–3 digits and up to two decimal places.                                                                           |
 | `ports`                 | Optional map keyed by 1–16 lowercase letters/digits, starting with a letter. Each entry has a Compose `service`, integer `container` port from 1 to 65535, and optional `description`. Use the `web` name for an HTTP health check. |
-| `volumes`               | Optional list of unique volume names. A name is 1–32 characters, starts with a lowercase letter, and contains lowercase letters, digits, or `_`.                                                                                    |
+| `volumes`               | Optional list of objects with unique `name` values, such as `[{"name":"data"}]`. A name is 1–32 characters, starts with a lowercase letter, and contains lowercase letters, digits, or `_`.                                         |
 | `variables`             | Optional list of unique environment variables. Names are uppercase, start with a letter, and must not start with reserved prefix `ARC_`. Each has a `label` and a `type`; see below.                                                |
 | `healthcheck`           | Required object. `type` is `http` or `container`; `timeout` is 10–1800 seconds. HTTP checks also need `ports.web`, an absolute `path`, and a non-empty numeric `expect` list.                                                       |
 | `dumps`                 | Optional list of backup commands. Each entry names an existing Compose `service`, a non-empty `command`, and a safe output `file` name.                                                                                             |
@@ -69,27 +69,40 @@ Defaults may use ArcPanel's supported placeholders, including `{{random:N}}`,
 characters. Never put a real password, API key, or other secret in the
 manifest or Compose file.
 
+ArcPanel validates each variable value when it renders it: at install, on a
+settings change, and in step 5 of the catalog check. The manifest-only step
+does not check values. A `password` value needs at least 8 characters, so a
+default such as `{{random:6}}` fails when rendered. ArcPanel also checks any
+`pattern` against the rendered value.
+
 ## 3. Write `compose.yaml`
 
 Use a `services` map and the exact image references declared in `images`.
-Service names referenced by `ports` and `dumps` must exist. For a volume named
-`data`, use ArcPanel's `${ARC_DATA_DATA}` path rather than a named Docker
-volume. ArcPanel also provides `ARC_UID`, `ARC_GID`, `ARC_USER`, `ARC_APP`,
-`ARC_DOMAIN`, `ARC_URL`, and `ARC_PORT_<PORTNAME>` values. Do not declare a
-variable beginning with `ARC_`; those names are reserved.
+Service names referenced by `ports` and `dumps` must exist. For each declared
+volume, use `${ARC_DATA_<NAME>}` with the volume name in uppercase: `data`
+becomes `${ARC_DATA_DATA}`, and `db_files` becomes `${ARC_DATA_DB_FILES}`. Each
+bind source must be exactly the folder for one declared volume; ArcPanel refuses
+subfolders and other paths. Do not use named Docker volumes. ArcPanel also
+provides `ARC_UID`, `ARC_GID`, `ARC_USER`, `ARC_APP`, `ARC_DOMAIN`, `ARC_URL`,
+and `ARC_PORT_<PORTNAME>` values. Do not declare a variable beginning with
+`ARC_`; those names are reserved.
 
-The generated `compose.arcpanel.yaml` override supplies the hosting user's
-UID/GID, CPU and memory limits, restart policy, logging limits, and the port
-bindings declared in the manifest. Do not publish additional ports in
+The generated `compose.arcpanel.yaml` override supplies `user`, `cap_drop`,
+`security_opt`, `cgroup_parent`, `cpus`, `mem_limit`, `restart`, `logging`,
+labels, and the port bindings declared in the manifest. Leave those settings out
+of `compose.yaml`. Compose merges `security_opt` lists, and the final list must
+be exactly `["no-new-privileges:true"]`. Do not publish additional ports in
 `compose.yaml`.
 
 The merged project is refused if it asks for privileged mode, added
 capabilities, devices, host namespaces, the Docker socket, named volumes,
 secrets, configs, a build, or another forbidden Compose feature. Networks must
 be non-external bridge networks, and bind mounts must stay under this app's data
-directory. Containers must run as the app user, drop all capabilities, use
-`no-new-privileges`, and stay in that user's cgroup. These restrictions protect
-the host and other hosting users; do not work around them in the Compose file.
+directory. The only allowed `extra_hosts` entry is
+`host.docker.internal:host-gateway`. Containers must run as the app user, drop
+all capabilities, use `no-new-privileges`, and stay in that user's cgroup.
+These restrictions protect the host and other hosting users; do not work around
+them in the Compose file.
 
 For a `container` health check, define a Compose health check for the service
 whose health ArcPanel should wait for. The catalog validator checks the
@@ -133,6 +146,10 @@ sudo /usr/local/arcpanel/bin/v-check-docker-catalog
 sudo /usr/local/arcpanel/bin/v-check-docker-catalog /path/to/docker-catalog json
 ```
 
+If the catalog directory, Docker CLI, or Compose plugin is missing, the command
+stops with `E_NOTEXIST` before checking any apps. JSON output has uppercase keys:
+`SLUG`, `VERSION`, `STATUS` (`ok` or `invalid`), and `ERRORS`.
+
 The optional first argument is a catalog directory; the optional second
 argument is `json` (the default output is human-readable). For each app and
 version, the command runs these checks in order:
@@ -148,8 +165,9 @@ version, the command runs these checks in order:
    unique variable names; health-check type, HTTP fields and timeout; dumps;
    and post-install text.
 4. Check that `icon.svg` and `compose.yaml` exist and are non-empty.
-5. Substitute defaults and safe sample values for variables that have no
-   default, merge ArcPanel's override, and run `docker compose config`.
+5. If the earlier checks found no errors, substitute defaults and safe sample
+   values for variables that have no default, validate the rendered values,
+   merge ArcPanel's override, and run `docker compose config`.
 6. Inspect the rendered configuration in this order:
    - For each service, reject `privileged`, `cap_add`, `devices`,
      `device_cgroup_rules`, `network_mode`, `pid`, `ipc`, `uts`, `userns_mode`,
@@ -159,18 +177,25 @@ version, the command runs these checks in order:
    - Require the app user's UID/GID, `cap_drop: [ALL]`,
      `security_opt: [no-new-privileges:true]`, the app user's cgroup, and an
      image listed in the manifest.
-   - Check `extra_hosts`, then allow only bind or tmpfs mounts. Bind sources
-     must stay under the app's data directory and must not name
+   - Check `extra_hosts` (only `host.docker.internal:host-gateway` is allowed),
+     then allow only bind or tmpfs mounts. Bind sources must be exactly one
+     declared volume folder under the app's data directory and must not name
      `docker.sock`.
    - Check that published ports match the manifest, then reject external or
      non-bridge networks, named volumes, secrets, and configs.
    - Finally, require each manifest port and dump to name an existing
      Compose service.
 7. Print the result for each version. Invalid entries make the command exit
-   with `E_INVALID`; `json` output includes each app's slug, version, status,
-   and error list.
+   with `E_INVALID`.
 
-Fix each reported error and run the check again. The
-[`test/arcpanel-docker.bats`](../../../../test/arcpanel-docker.bats) suite also
-covers the shipped catalog and invalid manifest/Compose cases; run it on the
-test server, not a production host.
+Steps 5 and 6 run only when the preceding manifest and file checks pass. A first
+run can therefore report manifest errors without Compose errors; fix those and
+run the check again to reach the rendered-Compose checks. The
+[`test/arcpanel-docker.bats`](../../../../test/arcpanel-docker.bats) suite
+covers the shipped catalog and invalid manifest/Compose cases. When adding a
+catalog app, add its slug to `APPS` in
+[`test/arcpanel-docker-catalog.bats`](../../../../test/arcpanel-docker-catalog.bats).
+That end-to-end suite installs each app with default variables, waits for its
+health check, and verifies the hosting user and capabilities. Both BATS suites
+run on the test server, not a production host; the catalog suite pulls the real
+container images.
